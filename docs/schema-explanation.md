@@ -154,20 +154,26 @@ One chain worth knowing: deleting an event cascades to its bookings, but if one 
 
 ---
 
-## 6. Rules left for the next phase (need triggers or functions)
+## 6. Rules implemented by booking logic
 
-A CHECK constraint can only look at **one row**. These rules need other rows, so they will be implemented with triggers or functions in the next phase:
+A CHECK constraint can only look at **one row**. The cross-row rules below are implemented in [booking_logic.sql](../db/sql/booking_logic.sql):
 
-1. Venue `capacity >= event.expected_footfall` when a booking is made.
+1. Venue `capacity >= event.expected_footfall` when a booking is confirmed.
 2. Requested resource quantity <= quantity still free in that time slot.
-3. A club's faculty advisor must have the FACULTY role (or higher).
-4. Both bookings in a conflict-log row must be for the same venue and overlap in time.
-5. Cancelling an event cancels its bookings.
-6. Computing the priority score and picking the winner, inside a transaction.
+3. Computing the priority score from category, role, lead time, and past penalties.
+4. Picking a winner and rejecting overlapping pending requests inside a transaction.
+
+The following rules remain for a later phase:
+
+1. A club's faculty advisor must have the FACULTY role (or higher).
+2. Both bookings in a conflict-log row must be for the same venue and overlap in time.
+3. Cancelling an event cancels its bookings.
 
 ---
 
-## 7. Priority score (placeholder formula, for the next phase)
+## 7. Priority score (implemented formula with placeholder weights)
+
+The formula below is now implemented by `calculate_booking_priority()` in [booking_logic.sql](../db/sql/booking_logic.sql). The weights remain placeholders to be tuned after the campus survey.
 
 The schema already holds every input the score needs:
 

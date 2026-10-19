@@ -22,8 +22,8 @@ Students and club coordinators submit event requests: date and time, expected fo
 
 ## Status
 
-- **Phase 1: database design (current).** ER diagram, normalized schema with constraints, and placeholder seed data.
-- Later: SQL queries, procedures and functions, triggers, views, the priority engine, MongoDB aggregation, then the Next.js app with authentication and RBAC.
+- **Phase 2: database logic (current).** ER diagram, normalized schema, reporting views, booking validation, priority scoring, and transactional conflict resolution.
+- Later: MongoDB workflow execution, notifications, analytics aggregation, then the Next.js app with authentication and RBAC.
 
 ## Folder structure
 
@@ -37,6 +37,8 @@ Students and club coordinators submit event requests: date and time, expected fo
 ├── db/
 │   ├── sql/
 │   │   ├── schema.sql         PostgreSQL DDL: tables, keys, constraints, indexes
+│   │   ├── booking_logic.sql  validation, priority scoring and conflict resolution
+│   │   ├── views.sql          reporting, calendar, history and utilization views
 │   │   └── seed.sql           placeholder sample data
 │   └── mongo/
 │       ├── workflow_templates.json   3 sample approval chains
@@ -56,7 +58,13 @@ psql -U postgres -c "CREATE DATABASE cerms;"
 # 2. create the tables (drops existing CERMS tables first)
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/schema.sql
 
-# 3. load the placeholder data (wipes existing CERMS data first)
+# 3. create reporting and availability views
+psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/views.sql
+
+# 4. create booking validation and priority functions
+psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/booking_logic.sql
+
+# 5. load the placeholder data (wipes existing CERMS data first)
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/seed.sql
 ```
 
