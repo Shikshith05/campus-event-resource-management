@@ -1,0 +1,55 @@
+[
+  {
+    "event_id": 3,
+    "template_code": "CLUB_EVENT",
+    "template_version": 1,
+    "status": "IN_PROGRESS",
+    "current_stage_no": 3,
+    "submitted_by_user_id": 1,
+    "submitted_at": { "$date": "2026-10-05T04:00:00Z" },
+    "stages": [
+      {
+        "stage_no": 1,
+        "name": "Club Coordinator Review",
+        "approver_role": "CLUB_COORDINATOR",
+        "assigned_to_user_id": 3,
+        "status": "APPROVED",
+        "acted_by_user_id": 3,
+        "acted_at": { "$date": "2026-10-05T09:30:00Z" },
+        "comment": "Fine with the move to Seminar Hall B."
+      },
+      {
+        "stage_no": 2,
+        "name": "Faculty Advisor Approval",
+        "approver_role": "FACULTY",
+        "assigned_to_user_id": 5,
+        "status": "APPROVED",
+        "acted_by_user_id": 5,
+        "acted_at": { "$date": "2026-10-07T05:30:00Z" },
+        "comment": "Approved. Share the problem statements a week in advance."
+      },
+      {
+        "stage_no": 3,
+        "name": "HOD Approval",
+        "approver_role": "HOD",
+        "assigned_to_user_id": 7,
+        "status": "PENDING",
+        "due_by": { "$date": "2026-10-09T05:30:00Z" },
+        "acted_by_user_id": null,
+        "acted_at": null,
+        "comment": null
+      },
+      {
+        "stage_no": 4,
+        "name": "Admin Final Approval",
+        "approver_role": "ADMIN",
+        "assigned_to_user_id": null,
+        "status": "NOT_STARTED",
+        "acted_by_user_id": null,
+        "acted_at": null,
+        "comment": null
+      }
+    ],
+    "updated_at": { "$date": "2026-10-07T05:30:00Z" }
+  }
+]

@@ -1,0 +1,119 @@
+[
+  {
+    "template_code": "CLUB_EVENT",
+    "version": 1,
+    "name": "Club Event Approval",
+    "description": "Default chain for any club event. PLACEHOLDER: confirm stages and SLAs with the admin office.",
+    "applies_to": {
+      "event_category": "CLUB",
+      "event_type": null,
+      "department_code": null
+    },
+    "is_active": true,
+    "stages": [
+      {
+        "stage_no": 1,
+        "name": "Club Coordinator Review",
+        "approver_role": "CLUB_COORDINATOR",
+        "approver_rule": "COORDINATOR_OF_EVENT_CLUB",
+        "sla_hours": 24,
+        "skip_if_requester_role": ["CLUB_COORDINATOR", "FACULTY", "HOD", "ADMIN"]
+      },
+      {
+        "stage_no": 2,
+        "name": "Faculty Advisor Approval",
+        "approver_role": "FACULTY",
+        "approver_rule": "ADVISOR_OF_EVENT_CLUB",
+        "sla_hours": 48
+      },
+      {
+        "stage_no": 3,
+        "name": "HOD Approval",
+        "approver_role": "HOD",
+        "approver_rule": "HOD_OF_EVENT_DEPARTMENT",
+        "sla_hours": 48
+      },
+      {
+        "stage_no": 4,
+        "name": "Admin Final Approval",
+        "approver_role": "ADMIN",
+        "approver_rule": "ANY_ADMIN",
+        "sla_hours": 72
+      }
+    ],
+    "on_reject": "STOP",
+    "created_by_user_id": 9,
+    "created_at": { "$date": "2026-10-01T04:30:00Z" }
+  },
+  {
+    "template_code": "DEPARTMENT_EVENT",
+    "version": 1,
+    "name": "Department Event Approval",
+    "description": "Short chain for events run by a department. PLACEHOLDER: confirm with the admin office.",
+    "applies_to": {
+      "event_category": "DEPARTMENT",
+      "event_type": null,
+      "department_code": null
+    },
+    "is_active": true,
+    "stages": [
+      {
+        "stage_no": 1,
+        "name": "HOD Approval",
+        "approver_role": "HOD",
+        "approver_rule": "HOD_OF_EVENT_DEPARTMENT",
+        "sla_hours": 48
+      },
+      {
+        "stage_no": 2,
+        "name": "Admin Final Approval",
+        "approver_role": "ADMIN",
+        "approver_rule": "ANY_ADMIN",
+        "sla_hours": 72
+      }
+    ],
+    "on_reject": "STOP",
+    "created_by_user_id": 9,
+    "created_at": { "$date": "2026-10-01T04:30:00Z" }
+  },
+  {
+    "template_code": "GUEST_LECTURE",
+    "version": 1,
+    "name": "Guest Lecture Approval",
+    "description": "Guest lectures need visitor details for the gate pass. PLACEHOLDER: confirm with the admin office.",
+    "applies_to": {
+      "event_category": "ACADEMIC",
+      "event_type": "GUEST_LECTURE",
+      "department_code": null
+    },
+    "is_active": true,
+    "required_fields": ["guest_name", "guest_affiliation", "talk_topic"],
+    "stages": [
+      {
+        "stage_no": 1,
+        "name": "Faculty In-charge Review",
+        "approver_role": "FACULTY",
+        "approver_rule": "ANY_FACULTY_OF_EVENT_DEPARTMENT",
+        "sla_hours": 24,
+        "skip_if_requester_role": ["FACULTY", "HOD", "ADMIN"]
+      },
+      {
+        "stage_no": 2,
+        "name": "HOD Approval",
+        "approver_role": "HOD",
+        "approver_rule": "HOD_OF_EVENT_DEPARTMENT",
+        "sla_hours": 48
+      },
+      {
+        "stage_no": 3,
+        "name": "Admin: Gate Pass and Final Approval",
+        "approver_role": "ADMIN",
+        "approver_rule": "ANY_ADMIN",
+        "sla_hours": 48
+      }
+    ],
+    "on_reject": "STOP",
+    "created_by_user_id": 9,
+    "created_at": { "$date": "2026-10-01T04:30:00Z" }
+  }
+]
