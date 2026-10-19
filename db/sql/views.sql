@@ -27,6 +27,7 @@ SELECT
     e.event_type,
     e.status AS event_status,
     e.expected_footfall,
+    e.created_at,
     e.organizer_id,
     organizer.full_name AS organizer_name,
     organizer.department_id AS organizer_department_id,
@@ -34,6 +35,10 @@ SELECT
     d.code AS department_code,
     e.club_id,
     c.name AS club_name,
+    guest.guest_name,
+    guest.guest_affiliation,
+    guest.talk_topic,
+    preferences.preferred_venues,
     b.booking_id,
     b.venue_id,
     v.name AS venue_name,
@@ -47,8 +52,23 @@ FROM event AS e
 JOIN app_user AS organizer ON organizer.user_id = e.organizer_id
 LEFT JOIN department AS d ON d.department_id = e.department_id
 LEFT JOIN club AS c ON c.club_id = e.club_id
+LEFT JOIN guest_lecture_details AS guest ON guest.event_id = e.event_id
 LEFT JOIN booking AS b ON b.event_id = e.event_id
-LEFT JOIN venue AS v ON v.venue_id = b.venue_id;
+LEFT JOIN venue AS v ON v.venue_id = b.venue_id
+LEFT JOIN LATERAL (
+    SELECT array_agg(
+        jsonb_build_object(
+            'venue_id', preference.venue_id,
+            'venue_name', preferred_venue.name,
+            'preference_order', preference.preference_order
+        )
+        ORDER BY preference.preference_order
+    ) AS preferred_venues
+    FROM event_venue_preference AS preference
+    JOIN venue AS preferred_venue
+        ON preferred_venue.venue_id = preference.venue_id
+    WHERE preference.event_id = e.event_id
+) AS preferences ON TRUE;
 
 
 -- Confirmed and pending venue requests. Filter this view by a requested

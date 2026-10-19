@@ -11,11 +11,11 @@ CERMS uses **two databases**, each for what it is good at:
 
 | | PostgreSQL | MongoDB |
 |---|---|---|
-| Holds | users, roles, clubs, venues, resources, events, bookings, priority decisions | approval workflow templates and running workflow instances |
+| Holds | users, roles, clubs, venues, resources, events, bookings, priority decisions and guest lecture details | approval workflow templates, running instances, audit history and notifications |
 | Why | Fixed structure, must never be wrong: foreign keys, CHECK constraints and ACID transactions stop double-booking | Each event type needs a different number of approval steps, with different fields. That is a natural fit for a nested document and an awkward fit for fixed tables |
 | Special feature used | **Exclusion constraint** on a time range: the database itself refuses two confirmed bookings of the same venue at overlapping times. MySQL has no equivalent | Nested arrays of stages; the aggregation pipeline (later) for approval-turnaround analytics |
 
-The 11 PostgreSQL tables fall into four groups:
+The 13 PostgreSQL tables fall into four groups:
 
 - **Master data:** `department`, `role`, `app_user`, `club`, `venue`, `resource`
 - **Bridge tables (M:N):** `club_member`, `booking_resource`
@@ -33,7 +33,7 @@ The 11 PostgreSQL tables fall into four groups:
 | 3NF | 2NF, and no non-key column depends on another non-key column (no transitive dependency) |
 | BCNF | Every column that determines other columns is a candidate key |
 
-**Result: all 11 tables are in 3NF, and in fact in BCNF.** In every table, the only things that determine other columns are the primary key or another UNIQUE column.
+**Result: all 13 tables are in 3NF, and in fact in BCNF.** In every table, the only things that determine other columns are the primary key or another UNIQUE column.
 Section 4 lists the data we deliberately did *not* store, because storing it would break 3NF.
 
 ---
@@ -98,6 +98,10 @@ Section 4 lists the data we deliberately did *not* store, because storing it wou
 - **Relationships:** N : 1 to `app_user` (the organizer, i.e. the requester), to `department` and to `club`; 1 : N to `booking`.
 - **Normal form:** BCNF. Is `department_id` a transitive copy of `club.department_id`? No. A campus-wide club has no department, and a CSE club may hold an event under ECE. So `club_id` does not determine `department_id`; it is an independent fact about the event.
 
+### 3.8.1 `event_venue_preference` and `guest_lecture_details`
+- `event_venue_preference` stores ranked venue choices. The assigned venue remains in `booking`, so preferences do not get confused with the final allocation.
+- `guest_lecture_details` stores the visitor fields required by the guest-lecture workflow without adding nullable guest columns to every event row.
+
 ### 3.9 `booking`
 - **Purpose:** One venue for one time slot, requested for an event. An event can have several bookings: a multi-day event, or a new booking in an alternate venue after losing a clash.
 - **Key constraints:**
@@ -138,6 +142,7 @@ Section 4 lists the data we deliberately did *not* store, because storing it wou
 | Free quantity of a resource | `total_quantity` minus overlapping confirmed bookings | Changes with every booking |
 | Alternate venue suggestions | computed on demand: active venues with capacity >= footfall and no confirmed overlap | They go out of date immediately |
 | Approval stages | MongoDB `workflow_instances` | Variable shape (see section 8) |
+| Workflow audit and notifications | MongoDB `workflow_audit` and `workflow_notifications` | Event-driven history and inbox state |
 
 ---
 
@@ -165,9 +170,13 @@ A CHECK constraint can only look at **one row**. The cross-row rules below are i
 
 The following rules remain for a later phase:
 
-1. A club's faculty advisor must have the FACULTY role (or higher).
-2. Both bookings in a conflict-log row must be for the same venue and overlap in time.
-3. Cancelling an event cancels its bookings.
+1. Both bookings in a conflict-log row must be for the same venue and overlap in time.
+2. Cancelling an event cancels its bookings.
+
+Additional cross-table validation now enforces active event organizers,
+club-coordinator organizers for club events, active faculty-or-higher club
+advisors, active venues for pending/confirmed bookings, and administrator-only
+manual conflict overrides.
 
 ---
 
@@ -229,7 +238,7 @@ Sample files: [workflow_templates.json](../db/mongo/workflow_templates.json), [w
 
 ---
 
-## 9. Why only these 11 tables
+## 9. Why only these 13 tables
 
 Things we considered and left out, to keep the design simple:
 
@@ -262,4 +271,4 @@ Things we considered and left out, to keep the design simple:
 - **Why not store the cancellation count on the user?** It can be derived from bookings, and storing it would risk disagreement (an update anomaly).
 - **Why two databases?** Core records need strict integrity and transactions (PostgreSQL). Approval chains have a different shape per event type (MongoDB documents).
 - **What happens if a user leaves?** They are deactivated, not deleted. RESTRICT foreign keys protect their history.
-- **Is the design in 3NF?** Yes, all 11 tables are in 3NF, and in BCNF. Every determinant is a candidate key, and derived data is computed rather than stored (section 4).
+- **Is the design in 3NF?** Yes, all 13 tables are in 3NF, and in BCNF. Every determinant is a candidate key, and derived data is computed rather than stored (section 4).

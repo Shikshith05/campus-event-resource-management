@@ -16,7 +16,9 @@
 BEGIN;
 
 TRUNCATE booking_conflict_log, booking_resource, booking, event,
-         resource, venue, club_member, club, app_user, role, department
+         event_venue_preference, guest_lecture_details, resource, venue,
+         club_member, club,
+         app_user, role, department
 RESTART IDENTITY;
 
 
@@ -123,6 +125,36 @@ INSERT INTO event (event_id, title, description, category, event_type, organizer
     (4, 'Robotics Workshop',                 'Placeholder', 'CLUB',       'WORKSHOP',      4, 2, 2,     50, 'APPROVED',         '2026-09-01 11:00+05:30'),
     (5, 'Study Group Session',               'Placeholder', 'PERSONAL',   'OTHER',         1, NULL, NULL, 20, 'APPROVED',       '2026-09-18 12:00+05:30'),
     (6, 'Coding Club Meetup',                'Placeholder', 'CLUB',       'CLUB_MEET',     3, 1, 1,     40, 'CANCELLED',        '2026-09-10 10:00+05:30');
+
+
+-- ---------------------------------------------------------------------
+-- event_venue_preference
+-- PLACEHOLDER: replace after campus survey
+-- ---------------------------------------------------------------------
+INSERT INTO event_venue_preference (event_id, venue_id, preference_order) VALUES
+    (1, 2, 1),
+    (1, 1, 2),
+    (2, 1, 1),
+    (2, 3, 2),
+    (3, 2, 1),
+    (3, 3, 2),
+    (4, 4, 1),
+    (5, 4, 1),
+    (6, 2, 1);
+
+
+-- ---------------------------------------------------------------------
+-- guest_lecture_details
+-- PLACEHOLDER: replace after campus survey
+-- ---------------------------------------------------------------------
+INSERT INTO guest_lecture_details (
+    event_id, guest_name, guest_affiliation, talk_topic
+) VALUES (
+    1,
+    'Guest Speaker Placeholder',
+    'Industry Partner Placeholder',
+    'Placeholder technology topic'
+);
 
 
 -- ---------------------------------------------------------------------

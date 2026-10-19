@@ -90,6 +90,24 @@ Table event {
   }
 }
 
+Table event_venue_preference {
+  event_id int [not null]
+  venue_id int [not null]
+  preference_order smallint [not null, note: 'positive and unique per event']
+
+  indexes {
+    (event_id, venue_id) [pk]
+    (event_id, preference_order) [unique]
+  }
+}
+
+Table guest_lecture_details {
+  event_id int [pk]
+  guest_name varchar(150) [not null]
+  guest_affiliation varchar(200) [not null]
+  talk_topic varchar(250) [not null]
+}
+
 Table booking {
   booking_id int [pk, increment]
   event_id int [not null]
@@ -145,6 +163,9 @@ Ref: venue.department_id > department.department_id [delete: set null]
 Ref: event.organizer_id > app_user.user_id [delete: restrict]
 Ref: event.department_id > department.department_id [delete: restrict]
 Ref: event.club_id > club.club_id [delete: restrict]
+Ref: event_venue_preference.event_id > event.event_id [delete: cascade]
+Ref: event_venue_preference.venue_id > venue.venue_id [delete: restrict]
+Ref: guest_lecture_details.event_id > event.event_id [delete: cascade]
 Ref: booking.event_id > event.event_id [delete: cascade]
 Ref: booking.venue_id > venue.venue_id [delete: restrict]
 Ref: booking_resource.booking_id > booking.booking_id [delete: cascade]

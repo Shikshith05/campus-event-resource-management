@@ -2,8 +2,7 @@
 -- CERMS - Campus Event and Resource Management System
 -- PostgreSQL schema (DDL only)
 --
--- Phase 1 (database design): tables, keys and constraints only.
--- Procedures, functions, triggers and views come in a later phase.
+-- Core relational design: tables, keys and constraints.
 --
 -- Run (database must already exist):
 --   psql -v ON_ERROR_STOP=1 -d cerms -f db/sql/schema.sql
@@ -18,7 +17,9 @@ CREATE EXTENSION IF NOT EXISTS btree_gist;
 
 DROP TABLE IF EXISTS
     booking_conflict_log, booking_resource, booking, event,
-    resource, venue, club_member, club, app_user, role, department
+    event_venue_preference, guest_lecture_details, resource, venue,
+    club_member, club, app_user,
+    role, department
 CASCADE;
 
 
@@ -181,6 +182,35 @@ CREATE TABLE event (
     CONSTRAINT chk_event_department CHECK (
         category = 'PERSONAL' OR department_id IS NOT NULL
     )
+);
+
+
+-- ---------------------------------------------------------------------
+-- event_venue_preference: ranked venue choices for an event request.
+-- The booking table records the venue actually assigned.
+-- ---------------------------------------------------------------------
+CREATE TABLE event_venue_preference (
+    event_id         INT NOT NULL
+                     REFERENCES event (event_id) ON DELETE CASCADE,
+    venue_id         INT NOT NULL
+                     REFERENCES venue (venue_id) ON DELETE RESTRICT,
+    preference_order SMALLINT NOT NULL CHECK (preference_order > 0),
+
+    PRIMARY KEY (event_id, venue_id),
+    CONSTRAINT uq_event_venue_preference_order
+        UNIQUE (event_id, preference_order)
+);
+
+
+-- ---------------------------------------------------------------------
+-- guest_lecture_details: fields required by the guest-lecture workflow.
+-- ---------------------------------------------------------------------
+CREATE TABLE guest_lecture_details (
+    event_id          INT PRIMARY KEY
+                      REFERENCES event (event_id) ON DELETE CASCADE,
+    guest_name        VARCHAR(150) NOT NULL,
+    guest_affiliation VARCHAR(200) NOT NULL,
+    talk_topic        VARCHAR(250) NOT NULL
 );
 
 

@@ -1,6 +1,6 @@
 # CERMS: ER Diagram
 
-This diagram covers the PostgreSQL side of CERMS: 11 tables, matching [db/sql/schema.sql](../db/sql/schema.sql).
+This diagram covers the PostgreSQL side of CERMS: 13 tables, matching [db/sql/schema.sql](../db/sql/schema.sql).
 The approval workflow lives in MongoDB and is described at the end of this page.
 
 For a nicer image, paste [schema.dbml](schema.dbml) into <https://dbdiagram.io>.
@@ -90,6 +90,19 @@ erDiagram
         timestamptz created_at
     }
 
+    EVENT_VENUE_PREFERENCE {
+        int event_id PK, FK
+        int venue_id PK, FK
+        smallint preference_order
+    }
+
+    GUEST_LECTURE_DETAILS {
+        int event_id PK, FK
+        varchar guest_name
+        varchar guest_affiliation
+        varchar talk_topic
+    }
+
     BOOKING {
         int booking_id PK
         int event_id FK
@@ -127,6 +140,9 @@ erDiagram
     APP_USER         ||--o{ EVENT                : "organizes"
     DEPARTMENT       |o--o{ EVENT                : "runs"
     CLUB             |o--o{ EVENT                : "holds"
+    EVENT            ||--o{ EVENT_VENUE_PREFERENCE : "prefers"
+    VENUE            ||--o{ EVENT_VENUE_PREFERENCE : "is preferred"
+    EVENT            ||--o| GUEST_LECTURE_DETAILS : "has details"
     EVENT            ||--o{ BOOKING              : "requests"
     VENUE            ||--o{ BOOKING              : "is booked in"
     BOOKING          ||--o{ BOOKING_RESOURCE     : "needs"
@@ -158,6 +174,8 @@ Rules that the diagram cannot show (they are CHECK constraints in the DDL):
 
 - A `CLUB` event must have a `club_id`; other categories must not.
 - Every event except `PERSONAL` must have a `department_id`.
+- Venue preferences are ranked uniquely per event; the booking stores the assigned venue.
+- Guest lecture events may have a separate details row for visitor and talk information.
 - Two `CONFIRMED` bookings of the same venue cannot overlap in time (exclusion constraint).
 
 ## MongoDB side (not in the ER diagram)

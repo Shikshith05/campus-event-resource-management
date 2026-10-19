@@ -1,0 +1,27 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: cerms
+      POSTGRES_USER: cerms
+      POSTGRES_PASSWORD: cerms
+    ports:
+      - "5432:5432"
+    volumes:
+      - cerms-postgres-data:/var/lib/postgresql/data
+      - ./db/sql/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./db/sql/views.sql:/docker-entrypoint-initdb.d/02-views.sql:ro
+      - ./db/sql/booking_logic.sql:/docker-entrypoint-initdb.d/03-booking-logic.sql:ro
+      - ./db/sql/analytics.sql:/docker-entrypoint-initdb.d/04-analytics.sql:ro
+      - ./db/sql/seed.sql:/docker-entrypoint-initdb.d/05-seed.sql:ro
+
+  mongodb:
+    image: mongo:8
+    ports:
+      - "27017:27017"
+    volumes:
+      - cerms-mongo-data:/data/db
+
+volumes:
+  cerms-postgres-data:
+  cerms-mongo-data:
