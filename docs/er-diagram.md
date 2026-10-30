@@ -5,6 +5,22 @@ The approval workflow lives in MongoDB and is described at the end of this page.
 
 For a nicer image, paste [schema.dbml](schema.dbml) into <https://dbdiagram.io>.
 
+## Images
+
+Rendered from the Mermaid block below with `node scripts/render-er-diagram.mjs` (uses `npx @mermaid-js/mermaid-cli@11`; re-run it after changing the block).
+
+| Image | Contents | Use |
+|---|---|---|
+| [er-diagram-core.png](er-diagram-core.png) · [svg](er-diagram-core.svg) | DEPARTMENT, ROLE, APP_USER, CLUB, CLUB_MEMBER, VENUE, RESOURCE | report, A4 width |
+| [er-diagram-booking.png](er-diagram-booking.png) · [svg](er-diagram-booking.svg) | EVENT, EVENT_VENUE_PREFERENCE, GUEST_LECTURE_DETAILS, BOOKING, BOOKING_RESOURCE, BOOKING_CONFLICT_LOG, BOOKING_STATUS_HISTORY (core tables they reference appear as key-only boxes) | report, A4 width |
+| [er-diagram.png](er-diagram.png) · [svg](er-diagram.svg) | all 14 tables with the comment column | screen / zoom |
+
+The two A4 images leave out the comment column (allowed values, notes) to stay readable when printed. The full diagram and the tables below keep it.
+
+![Core tables](er-diagram-core.png)
+
+![Booking tables](er-diagram-booking.png)
+
 ## How to read it
 
 | Symbol | Meaning |
