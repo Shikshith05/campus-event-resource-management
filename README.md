@@ -34,7 +34,8 @@ Students and club coordinators submit event requests: date and time, expected fo
 ├── docs/
 │   ├── er-diagram.md          ER diagram (Mermaid) and relationship table
 │   ├── schema.dbml            same schema for https://dbdiagram.io
-│   └── schema-explanation.md  table-by-table explanation and normal forms (viva notes)
+│   ├── schema-explanation.md  table-by-table explanation and normal forms (viva notes)
+│   └── api.md                 every API route: who may call it, request/response examples
 ├── db/
 │   ├── sql/
 │   │   ├── schema.sql         PostgreSQL DDL: tables, keys, constraints, indexes
@@ -216,7 +217,13 @@ Never use them on a shared or public server.
 | `GET /api/events` | any logged-in user (a student sees only their own requests: row-level security) |
 | `GET /api/availability` | any logged-in user |
 | `GET /api/analytics` | Faculty, HOD, Admin |
+| `POST /api/events/submit` | any logged-in user: submit a request and start its approval workflow |
+| `GET /api/events/{eventId}/workflow` | anyone who can see the event: approval timeline |
+| `GET /api/approvals` | Club Coordinator, Faculty, HOD, Admin: my pending approvals |
+| `POST /api/approvals/{eventId}` | the assigned approver only: approve or reject |
 | `/login`, `/dashboard` | login page; dashboard with a role-specific section |
+
+Full request/response examples: [docs/api.md](docs/api.md).
 
 ## What each file demonstrates
 
@@ -242,3 +249,4 @@ Real venue counts, capacities and equipment quantities will come from a campus s
 
 - [docs/er-diagram.md](docs/er-diagram.md): ER diagram
 - [docs/schema-explanation.md](docs/schema-explanation.md): design explanation and normalization
+- [docs/api.md](docs/api.md): API routes for the front end

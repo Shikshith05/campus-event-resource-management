@@ -333,7 +333,7 @@ Files: [procedures.sql](../db/sql/procedures.sql), [rbac.sql](../db/sql/rbac.sql
 
   `LOCAL` settings end with the transaction, so a pooled connection never carries one user's identity into the next request. If the setting is missing, `app_current_user_id()` is NULL and a student sees **no** rows (fail closed).
 - **Views and RLS:** a normal view runs with its owner's rights and would skip RLS. `event_request_summary` is switched to `security_invoker = true`, so a student calling `/api/events` sees only their own requests. The calendar view `venue_booking_schedule` keeps owner rights on purpose: everyone may see which slots are taken.
-- **Try it:** the test section of rbac.sql runs the *same* `SELECT ... FROM event` as user 1 (2 rows), user 4 (1 row) and faculty (6 rows), then shows forbidden statements failing.
+- **Try it:** the test section of rbac.sql runs the *same* `SELECT ... FROM event` as user 1 (2 rows), user 4 (1 row) and faculty (8 rows), then shows forbidden statements failing. (Once workflow.sql has added the coordinator policy, user 4, who coordinates the Robotics Club, also sees that club's requests: 3 rows.)
 
 ### 12.6 How a login flows through every layer
 1. `POST /api/auth/login`: zod validates the body; `find_user_for_login(email)` returns the bcrypt hash; `bcrypt.compare` checks the password. For an unknown email a dummy hash is compared, so both cases take the same time and reveal nothing.
@@ -346,3 +346,58 @@ Files: [procedures.sql](../db/sql/procedures.sql), [rbac.sql](../db/sql/rbac.sql
 - **BEFORE vs AFTER trigger?** BEFORE can check or change the row before it is saved (our validation triggers); AFTER reacts to a change that already succeeded (the audit trigger).
 - **GRANT vs RLS?** GRANT = which tables and columns; RLS = which rows of those tables.
 - **What is SECURITY DEFINER, and why is it risky?** The routine runs with its owner's rights. That is dangerous if anyone can call it, so EXECUTE is revoked from PUBLIC, `search_path` is fixed, and the routine checks the caller itself.
+
+---
+
+## 13. How a request flows through both databases
+
+Files: [app/app/api/events/submit/route.ts](../app/app/api/events/submit/route.ts), [app/app/api/approvals/[eventId]/route.ts](../app/app/api/approvals/%5BeventId%5D/route.ts), [app/lib/workflow.ts](../app/lib/workflow.ts), [db/sql/workflow.sql](../db/sql/workflow.sql). The API itself is documented in [api.md](api.md).
+
+### 13.1 Who owns what
+- **PostgreSQL** owns the *facts*: the event, its booking and resources, and the final outcome (`event.status`). Constraints, triggers and RLS protect them.
+- **MongoDB** owns the *process*: which template was used, which stage is current, who is assigned to it, every decision (`workflow_audit`) and the inbox (`workflow_notifications`).
+- They are linked only by `event_id`. MongoDB cannot hold a foreign key into PostgreSQL, so the application keeps them consistent.
+
+### 13.2 Submitting a request (`POST /api/events/submit`)
+
+```
+browser ──► 1. PostgreSQL transaction (as the student)
+               CALL submit_booking_request(...)  -> event PENDING_APPROVAL, booking, resources,
+                                                    priority/conflict resolution
+               venue lost?  -> suggest_alternate_venues(), event -> DRAFT, COMMIT, answer 409
+               else         -> workflow_context(event)  (template inputs + approvers), COMMIT
+        ──► 2. MongoDB
+               createWorkflowInstance -> workflow_instances (+ audit WORKFLOW_CREATED, notification)
+               fails?  -> 3. new PostgreSQL transaction: event -> DRAFT, booking CONFIRMED -> PENDING
+```
+
+**Why not one transaction?** PostgreSQL and MongoDB are two separate servers. A `BEGIN ... COMMIT` in PostgreSQL cannot include a MongoDB write, and the reverse is also true. There is no single commit that makes both succeed or both fail (that would need a distributed "two-phase commit", which these two databases do not share).
+
+So we pick an **order** and a **compensating action**:
+- **PostgreSQL first.** Its rules are the strict ones (capacity, double booking, club membership). If they reject the request, nothing reaches MongoDB.
+- **If MongoDB then fails** (server down, or no user fits an approver rule), we cannot roll back the PostgreSQL commit, so we *undo it logically*. The event goes back to `DRAFT`, and its booking from `CONFIRMED` back to `PENDING` so the venue slot is not blocked. Nothing is left `PENDING_APPROVAL` without a workflow that could ever approve it.
+
+### 13.3 Approving or rejecting (`POST /api/approvals/{eventId}`)
+1. MongoDB: is there a current `PENDING` stage, and is it assigned to *this* user? If not, the answer is `403`.
+2. If this decision **ends** the workflow (the last approve, or any reject), PostgreSQL runs `record_workflow_decision()` inside a transaction that is **not committed yet**. It checks that the event is still `PENDING_APPROVAL` and that the caller may decide, then updates the event (and on reject frees its bookings).
+3. MongoDB updates the stage with `findOneAndUpdate`, whose filter repeats the checks (stage still `PENDING`, still assigned to this user). If two approvers click at the same moment, only one update matches.
+4. PostgreSQL `COMMIT`.
+
+If step 3 fails, step 4 never runs and PostgreSQL **rolls back**, so the databases cannot disagree. The only gap left is a crash between steps 3 and 4. Then MongoDB says APPROVED while PostgreSQL still says PENDING_APPROVAL; the audit entry (`STAGE_APPROVED` with a time) shows exactly what to repair.
+
+### 13.4 What workflow.sql adds, and why
+Approvers need PostgreSQL data that rbac.sql hides from them on purpose. Instead of widening the general GRANTs, workflow.sql adds four narrow pieces:
+
+| Object | Why it is needed |
+|---|---|
+| policies `event_coordinator_select`, `booking_coordinator_select` | a club coordinator must *see* (not edit) other students' requests for their own club |
+| `workflow_context(event_id)` | resolving approvers needs role names (the `role` table is admin-only); returns one user per `approver_rule` |
+| `approval_details(event_ids[])` | the inbox needs the priority score, and `calculate_booking_priority()` reads `role` |
+| `record_workflow_decision(event_id, decision)` | a coordinator may *reject* at stage 1 but has no UPDATE right on other people's events |
+
+Each is `SECURITY DEFINER` with EXECUTE revoked from PUBLIC, and each checks `app.current_user_id` itself. Division of labour: **MongoDB decides whose turn it is; PostgreSQL decides what that person may see and change.**
+
+### 13.5 Viva quick answers (workflow)
+- **Where is the approval state stored?** Stage by stage in MongoDB (`workflow_instances`); the final outcome in PostgreSQL (`event.status`), so plain SQL queries need no MongoDB.
+- **What if MongoDB is down when a student submits?** The PostgreSQL part commits, the MongoDB write fails, and the compensation sets the event back to DRAFT and releases the venue. The student gets an error and can resubmit.
+- **Can an approver act out of turn?** No. The route checks that the current stage is assigned to them (403), and the MongoDB update repeats that check atomically.
