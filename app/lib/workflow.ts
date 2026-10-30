@@ -443,7 +443,9 @@ async function actOnStage(
     event_id: eventId,
     workflow_instance_id: instance._id,
     stage_no: pendingStage.stage_no,
-    action: `STAGE_${action}D`,                       // STAGE_APPROVED / STAGE_REJECTED
+    // Explicit names: analytics.js matches STAGE_APPROVED / STAGE_REJECTED.
+    // (`STAGE_${action}D` would give STAGE_REJECTD for a rejection.)
+    action: action === "APPROVE" ? "STAGE_APPROVED" : "STAGE_REJECTED",
     acted_by_user_id: actorId,
     comment: comment || null,
     previous_status: "PENDING",

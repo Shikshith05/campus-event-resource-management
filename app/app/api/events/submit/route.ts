@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse } from "../../../../lib/apiError";
 import { requireUser } from "../../../../lib/auth";
-import { queryAsUser, withUserTransaction } from "../../../../lib/db";
+import { withUserTransaction } from "../../../../lib/db";
 import {
   approversFromContext,
   createWorkflowInstance,
@@ -141,7 +141,9 @@ export async function POST(request: Request) {
   // constraints are the strict ones), then MongoDB. If the MongoDB write
   // fails, we COMPENSATE: a second PostgreSQL transaction sets the event
   // back to DRAFT, so no request is left PENDING_APPROVAL without a
-  // workflow that could ever approve it.
+  // workflow that could ever approve it. Its CONFIRMED booking goes back
+  // to PENDING, so a draft does not keep the venue slot blocked (only
+  // CONFIRMED bookings block a slot, and PENDING is not a penalty).
   // -------------------------------------------------------------------
   try {
     const instance = await createWorkflowInstance(
@@ -172,11 +174,16 @@ export async function POST(request: Request) {
     );
   } catch (error) {
     try {
-      await queryAsUser(
-        user,
-        "UPDATE event SET status = 'DRAFT' WHERE event_id = $1 AND status = 'PENDING_APPROVAL'",
-        [pg.call.p_event_id]
-      );
+      await withUserTransaction(user, async client => {
+        await client.query(
+          "UPDATE event SET status = 'DRAFT' WHERE event_id = $1 AND status = 'PENDING_APPROVAL'",
+          [pg.call.p_event_id]
+        );
+        await client.query(
+          "UPDATE booking SET status = 'PENDING' WHERE event_id = $1 AND status = 'CONFIRMED'",
+          [pg.call.p_event_id]
+        );
+      });
     } catch (compensationError) {
       // Both databases failed: log loudly so an admin can fix the event.
       console.error(
