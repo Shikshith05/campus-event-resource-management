@@ -1,0 +1,3 @@
+name,venue_type,building,capacity,managing_department_code
+EXAMPLE Seminar Hall X,SEMINAR_HALL,EXAMPLE Block X,90,EXCIV
+EXAMPLE Open Ground,OPEN_AIR,,1500,

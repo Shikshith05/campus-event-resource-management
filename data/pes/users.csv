@@ -1,0 +1,4 @@
+university_id,full_name,email,role,department_code,password_hash
+EXF001,EXAMPLE Faculty Civil,example.faculty.civil@campus.example,FACULTY,EXCIV,$2b$10$SP1G3womRgRXQd9cp9dV0ODeHqTUUvSuqkoO1eGHKegV.FimJaj0.
+EXH001,EXAMPLE HOD Civil,example.hod.civil@campus.example,HOD,EXCIV,$2b$10$eXEP/V3bAQ.0dQU4iy5No.DiZ8peJqftkEw2IDuMyJyF7HBidwuJ6
+EXS001,EXAMPLE Student Civil,example.student.civil@campus.example,STUDENT,EXCIV,$2b$10$hUHEM1HG2Jvmk5PkKOk2A.l63kMjhz.KMlTF7LEUpPcMOaqMhfkNy

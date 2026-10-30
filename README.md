@@ -239,6 +239,7 @@ Then reload MongoDB with the command from the quick start. **The `-v` option del
 | Roles, grants, row-level security, and policy demonstrations | `db/sql/rbac.sql` |
 | Workflow-aware access and approval functions | `db/sql/workflow.sql` |
 | Guest-lecture details: insert grant and row-level security | `db/sql/guest_lecture.sql` |
+| Real PES University data: CSV templates, loader, password hashes | `data/pes/*.csv`, `db/sql/load_pes_data.sql`, `scripts/hash-password.mjs`; step by step in [docs/real-data-guide.md](docs/real-data-guide.md) |
 | SQL query catalogue | `db/sql/queries.sql` |
 | Reversible DML demonstration | `db/sql/dml.sql` |
 | MongoDB sample loader | `db/mongo/load.js` |
