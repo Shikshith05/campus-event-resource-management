@@ -53,7 +53,7 @@ export function isAppRole(value: unknown): value is AppRole {
 const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/health"];
 
 // Paths limited to some roles. Every other path only needs a valid login.
-// Some prefixes are for pages still being built (approver inbox, admin).
+// Prefixes here enforce the role boundaries for pages and their APIs.
 const ROLE_RULES: { prefix: string; roles: readonly AppRole[] }[] = [
   { prefix: "/api/analytics", roles: STAFF_ROLES },
   { prefix: "/analytics", roles: STAFF_ROLES },

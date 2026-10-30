@@ -1,7 +1,5 @@
 "use client";
 
-import styles from "../auth.module.css";
-
 export default function LogoutButton() {
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });
@@ -9,7 +7,7 @@ export default function LogoutButton() {
   }
 
   return (
-    <button className={styles.secondaryButton} type="button" onClick={logout}>
+    <button className="logout-button" type="button" onClick={logout}>
       Log out
     </button>
   );

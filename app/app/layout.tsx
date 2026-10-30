@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "./app.css";
 
 export const metadata: Metadata = {
   title: "CERMS",
