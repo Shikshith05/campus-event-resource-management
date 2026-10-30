@@ -244,7 +244,9 @@ function actOnStage(eventId, actorId, action, comment) {
     eventId,
     instance._id,
     pendingStage.stage_no,
-    `STAGE_${action}D`,
+    // Explicit names: analytics.js matches STAGE_APPROVED / STAGE_REJECTED.
+    // (`STAGE_${action}D` gave STAGE_REJECTD for a rejection.)
+    action === 'APPROVE' ? 'STAGE_APPROVED' : 'STAGE_REJECTED',
     actorId,
     comment,
     'PENDING',
