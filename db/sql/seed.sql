@@ -211,6 +211,37 @@ INSERT INTO booking_conflict_log (conflict_id, winning_booking_id, losing_bookin
 
 
 -- ---------------------------------------------------------------------
+-- Approval-workflow demo requests
+-- PLACEHOLDER: replace after campus survey
+-- Two Robotics Club requests by Student Two (member of club 2), still
+-- going through approval, so that after a fresh reset every approver
+-- role has something waiting (see db/mongo/workflow_instances.json):
+--   event 7 -> stage 1, Club Coordinator (Coordinator Two, user 4)
+--   event 8 -> stage 2, Faculty Advisor  (Faculty Two, user 6)
+--   event 3 -> stage 3, HOD              (HOD One, user 7)
+--   event 2 -> stage 2, Admin            (Admin One, user 9)
+-- Their venues are already CONFIRMED, as submit_booking_request does.
+-- ---------------------------------------------------------------------
+INSERT INTO event (event_id, title, description, category, event_type, organizer_id,
+                   department_id, club_id, expected_footfall, status, created_at) VALUES
+    (7, 'Robotics Line-Follower Contest', 'Placeholder', 'CLUB', 'COMPETITION', 2, 2, 2, 60, 'PENDING_APPROVAL', '2026-10-20 10:00+05:30'),
+    (8, 'Robotics Workshop Series',       'Placeholder', 'CLUB', 'WORKSHOP',    2, 2, 2, 40, 'PENDING_APPROVAL', '2026-10-22 10:00+05:30');
+
+INSERT INTO event_venue_preference (event_id, venue_id, preference_order) VALUES
+    (7, 3, 1),
+    (8, 4, 1);
+
+INSERT INTO booking (booking_id, event_id, venue_id, start_time, end_time, status, requested_at) VALUES
+    (8, 7, 3, '2026-11-18 10:00+05:30', '2026-11-18 13:00+05:30', 'CONFIRMED', '2026-10-20 10:00+05:30'),
+    (9, 8, 4, '2026-11-25 14:00+05:30', '2026-11-25 17:00+05:30', 'CONFIRMED', '2026-10-22 10:00+05:30');
+
+INSERT INTO booking_resource (booking_id, resource_id, quantity) VALUES
+    (8, 1, 1),      -- contest: 1 projector
+    (8, 5, 1),      --          1 generator
+    (9, 1, 1);      -- workshop: 1 projector
+
+
+-- ---------------------------------------------------------------------
 -- Move every identity counter past the explicit IDs used above, so the
 -- next INSERT without an ID does not collide.
 -- ---------------------------------------------------------------------
