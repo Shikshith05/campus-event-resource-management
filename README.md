@@ -18,12 +18,13 @@ Students and club coordinators submit event requests: date and time, expected fo
 |---|---|---|
 | Relational DB | PostgreSQL 16 | users, roles, clubs, venues, resources, events, bookings, priority decisions |
 | Document DB | MongoDB | workflow templates, instances, audit history and notifications |
-| Web app | Next.js + TypeScript | database health, event and availability API foundation |
+| Web app | Next.js + TypeScript | login, role-based dashboard, event/availability/analytics API with database-enforced access control |
 
 ## Status
 
-- **Phase 3: integration foundation (current).** SQL booking logic, MongoDB workflow operations, audit/notification collections, and a Next.js API/dashboard foundation.
-- Later: production authentication, complete approval UI, admin management, and expanded analytics.
+- **Phase 3: integration foundation.** SQL booking logic, MongoDB workflow operations, audit/notification collections, and a Next.js API/dashboard foundation.
+- **Phase 4: queries, procedures, security (current).** DML and query catalogues, stored procedure + audit trigger, MongoDB Read/Update/Delete, login with signed session cookies, database roles and row-level security.
+- Later: event request form, calendar, approver inbox, admin management, and analytics pages.
 
 ## Folder structure
 
@@ -52,7 +53,12 @@ Students and club coordinators submit event requests: date and time, expected fo
 │       ├── workflow_engine.js        template selection, approval and delete operations
 │       ├── workflow_rud.js           labelled Read / Update / Delete demo + aggregation
 │       └── analytics.js              workflow aggregation reports
-└── app/                       Next.js app and API foundation
+└── app/                       Next.js app
+    ├── middleware.ts          login + role checks before every page and API route
+    ├── lib/session.ts         signed session cookie, roles, route rules
+    ├── lib/auth.ts            read the session in routes and pages
+    ├── lib/db.ts              PostgreSQL/MongoDB access; withUserTransaction (SET LOCAL ROLE)
+    └── app/                   pages (/login, /dashboard, /) and API routes (/api/...)
 ```
 
 ## Running the database scripts
@@ -125,6 +131,13 @@ psql -U postgres -d cerms -f db/sql/queries.sql
 
 If PostgreSQL runs inside WSL, run these from the WSL shell after `cd /mnt/d/projects/campus-event-resource-management`. Add `-h localhost` if your setup asks for a password over TCP.
 
+**Expected ERROR lines.** Some statements are *meant* to fail, to show that a
+constraint, trigger or permission works. They run inside a `SAVEPOINT`, so the
+script carries on and exits successfully:
+
+- `rbac.sql` prints 5 (tests T5, T6, T7, T8, T10: permission denied / row-level security)
+- `dml.sql` prints 4 (7a double booking, 7b end before start, 7c club without club, 8c procedure failure)
+
 `schema.sql` uses the `btree_gist` extension, which ships with standard PostgreSQL. It powers the "no double-booking" constraint.
 
 ### MongoDB
@@ -133,7 +146,7 @@ If PostgreSQL runs inside WSL, run these from the WSL shell after `cd /mnt/d/pro
 mongosh "mongodb://localhost:27017/cerms" db/mongo/load.js
 ```
 
-This drops and reloads the `workflow_templates` and `workflow_instances` collections and creates their indexes.
+This drops and reloads all four workflow collections (`workflow_templates`, `workflow_instances`, `workflow_audit`, `workflow_notifications`) and creates their indexes.
 Alternatively, with MongoDB Database Tools installed:
 
 ```bash
@@ -198,6 +211,22 @@ Never use them on a shared or public server.
 | `GET /api/availability` | any logged-in user |
 | `GET /api/analytics` | Faculty, HOD, Admin |
 | `/login`, `/dashboard` | login page; dashboard with a role-specific section |
+
+## What each file demonstrates
+
+| Topic | File | What to look at |
+|---|---|---|
+| DDL with constraints | `db/sql/schema.sql` | PK/FK/UNIQUE/CHECK, exclusion constraint against double booking |
+| DML | `db/sql/dml.sql` | INSERT, UPDATE, DELETE, `UPDATE ... FROM`, `INSERT ... SELECT`, CASCADE, SAVEPOINTs |
+| Joins, nested, correlated and recursive queries | `db/sql/queries.sql` | sections A-G, each query answers a question written above it |
+| Functions and triggers | `db/sql/booking_logic.sql`, `db/sql/procedures.sql` | priority score, conflict resolution, validation triggers, status audit trigger |
+| Stored procedure | `db/sql/procedures.sql` | `submit_booking_request`, called with `CALL` in `dml.sql` section 8 |
+| Views | `db/sql/views.sql`, `db/sql/analytics.sql` | calendar, history and analytics views |
+| Database RBAC and row-level security | `db/sql/rbac.sql` | roles, GRANTs, policies, test section T1-T11 |
+| NoSQL create / aggregation | `db/mongo/load.js`, `workflow_engine.js`, `analytics.js` | templates, instances, audit, notifications |
+| NoSQL Read / Update / Delete | `db/mongo/workflow_rud.js` | labelled R1-R5, U1-U4, D1-D3 |
+| Authentication | `app/app/api/auth/*`, `app/middleware.ts`, `app/lib/session.ts` | bcrypt, signed httpOnly cookie, role checks |
+| Database-enforced access from the app | `app/lib/db.ts` | `withUserTransaction`: `SET LOCAL ROLE` + `app.current_user_id` |
 
 ## About the sample data
 

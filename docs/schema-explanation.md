@@ -175,10 +175,10 @@ A CHECK constraint can only look at **one row**. The cross-row rules below are i
 3. Computing the priority score from category, role, lead time, and past penalties.
 4. Picking a winner and rejecting overlapping pending requests inside a transaction.
 
-The following rules remain for a later phase:
+Two more rules are also implemented there as triggers:
 
-1. Both bookings in a conflict-log row must be for the same venue and overlap in time.
-2. Cancelling an event cancels its bookings.
+1. Both bookings in a conflict-log row must be for the same venue and overlap in time (`trg_validate_conflict_log_entry`).
+2. Cancelling an event cancels its bookings (`trg_cancel_event_bookings`).
 
 Additional cross-table validation now enforces active event organizers,
 club-coordinator organizers for club events, active faculty-or-higher club
@@ -252,7 +252,7 @@ Things we considered and left out, to keep the design simple:
 | Not added | Reason |
 |---|---|
 | `event_category` table | The four categories are fixed by the problem statement, so a CHECK list is enough |
-| `permission` / `role_permission` tables | Five roles. Permissions are checked by the app, and DB-level GRANTs come in the auth phase |
+| `permission` / `role_permission` tables | Five roles. Permissions are PostgreSQL GRANTs and row-level security policies on three database roles (section 12) |
 | `time_slot` table | Free start and end times plus range overlap are more flexible than fixed slots |
 | SQL workflow tables | Workflows live in MongoDB |
 | `alternate_suggestion` table | Suggestions are computed on demand |
@@ -279,3 +279,70 @@ Things we considered and left out, to keep the design simple:
 - **Why two databases?** Core records need strict integrity and transactions (PostgreSQL). Approval chains have a different shape per event type (MongoDB documents).
 - **What happens if a user leaves?** They are deactivated, not deleted. RESTRICT foreign keys protect their history.
 - **Is the design in 3NF?** Yes, all 14 tables are in 3NF, and in BCNF. Every determinant is a candidate key, and derived data is computed rather than stored (section 4).
+
+---
+
+## 12. Procedure, trigger, database RBAC and row-level security
+
+Files: [procedures.sql](../db/sql/procedures.sql), [rbac.sql](../db/sql/rbac.sql), [app/lib/db.ts](../app/lib/db.ts).
+
+### 12.1 Stored procedure: `submit_booking_request`
+- **What it does:** one `CALL` submits a whole request. It inserts the event, its booking and its resources, then runs the existing `resolve_booking_conflict()` to allocate the venue. The new IDs and the final booking status come back as INOUT parameters.
+- **Why a procedure and not a function?** A function is used *inside* a query and returns a value. A procedure is a *command* you `CALL` to carry out a multi-step job. This job changes 3+ tables and has nothing to SELECT from.
+- **Atomic:** if any step fails (capacity exceeded, not a club member, double booking ...), the `EXCEPTION` block undoes every row it inserted and raises one readable error that keeps the original SQLSTATE (e.g. `23P01` for a double booking).
+- **SECURITY DEFINER:** conflict resolution may reject *other* users' pending bookings and writes `booking_conflict_log`, which a student may not do directly. So the procedure runs with its owner's rights, but first checks that `app.current_user_id` is the organizer (or an ADMIN). `EXECUTE` is revoked from PUBLIC and granted only to the three CERMS roles.
+
+### 12.2 Function with a CTE: `suggest_alternate_venues(booking_id)`
+- `WITH target AS (...)` finds the booking's slot and footfall; `busy AS (...)` lists the venues already CONFIRMED in that slot; the final SELECT returns active venues with `capacity >= footfall` that are not busy, closest capacity first.
+- It runs with the **caller's** rights, so under row-level security a student can only ask about their own booking. The busy check reads the `venue_booking_schedule` view, which sees every booking, so the answer is still correct.
+
+### 12.3 Audit trigger: `trg_log_booking_status`
+- `AFTER INSERT OR UPDATE OF status ON booking FOR EACH ROW` writes one `booking_status_history` row: `(booking_id, old_status, new_status, changed_at)`. `old_status` is NULL when the booking is created.
+- **AFTER** because we only log changes that really happened. **FOR EACH ROW** because one UPDATE can change many bookings, and each one needs its own history row.
+- The trigger function is SECURITY DEFINER, so no user needs INSERT on the history table and audit rows cannot be faked.
+- All triggers in the project: `trg_validate_event_submission`, `trg_validate_club_advisor`, `trg_validate_booking_request`, `trg_cancel_event_bookings`, `trg_validate_conflict_log_entry`, `trg_validate_confirmed_booking` and `trg_validate_booking_resource_change` (booking_logic.sql), plus `trg_log_booking_status` (procedures.sql).
+
+### 12.4 Database roles (RBAC inside PostgreSQL)
+
+| Database role | Type | Used for | Can do |
+|---|---|---|---|
+| `cerms_student` | group (NOLOGIN) | Student, Club Coordinator | read venues, resources, clubs and the calendar views; insert and edit **own** events and bookings; call the procedure |
+| `cerms_faculty` | group, member of `cerms_student` | Faculty, HOD | everything a student can, plus read all events, bookings, history and analytics, and change event/booking **status** |
+| `cerms_admin` | group, member of `cerms_faculty` | Admin | everything; the only role that can touch `role`, `booking_conflict_log` and `password_hash` |
+| `cerms_app` | LOGIN, NOINHERIT | the Next.js server | nothing by itself except `find_user_for_login()`; may `SET ROLE` to the three groups |
+| `cerms_test_*` | LOGIN | trying the rules in psql | each is a member of one group |
+
+- **Least privilege:** each role gets only what its users need. A *column-level* GRANT on `app_user` lets students and faculty read every column **except** `password_hash`.
+- **Group roles vs login roles:** privileges are given to the NOLOGIN groups; whoever logs in is made a member of a group. A new user never needs new GRANTs.
+- **Why NOINHERIT for `cerms_app`?** If it inherited its memberships, the app's connection would silently hold admin rights. With NOINHERIT it has no table rights until it switches to the right group for the current user.
+
+### 12.5 Row-level security (RLS)
+- GRANTs decide *which tables and columns* a role may use; **RLS decides which rows**. RLS is enabled on `event` and `booking`.
+- A policy has two parts: `USING (...)` filters the rows you may see, update or delete; `WITH CHECK (...)` validates the row you are writing.
+  - Students: `USING (organizer_id = app_current_user_id())`, so only their own requests. `WITH CHECK` also limits the status they may set: they can cancel, but never approve or confirm.
+  - Faculty and admin: `USING (TRUE)`, so every row.
+- **How does PostgreSQL know who the user is?** The app always logs in as `cerms_app`, so PostgreSQL cannot see the person. For every request the app runs, in one transaction:
+
+  ```sql
+  BEGIN;
+  SET LOCAL ROLE cerms_student;                          -- which GRANTs apply
+  SELECT set_config('app.current_user_id', '1', true);   -- = SET LOCAL; read by the policies
+  SELECT * FROM event;                                    -- RLS returns only user 1's rows
+  COMMIT;                                                 -- both settings end here
+  ```
+
+  `LOCAL` settings end with the transaction, so a pooled connection never carries one user's identity into the next request. If the setting is missing, `app_current_user_id()` is NULL and a student sees **no** rows (fail closed).
+- **Views and RLS:** a normal view runs with its owner's rights and would skip RLS. `event_request_summary` is switched to `security_invoker = true`, so a student calling `/api/events` sees only their own requests. The calendar view `venue_booking_schedule` keeps owner rights on purpose: everyone may see which slots are taken.
+- **Try it:** the test section of rbac.sql runs the *same* `SELECT ... FROM event` as user 1 (2 rows), user 4 (1 row) and faculty (6 rows), then shows forbidden statements failing.
+
+### 12.6 How a login flows through every layer
+1. `POST /api/auth/login`: zod validates the body; `find_user_for_login(email)` returns the bcrypt hash; `bcrypt.compare` checks the password. For an unknown email a dummy hash is compared, so both cases take the same time and reveal nothing.
+2. The server sets an **httpOnly, SameSite=Lax** cookie of the form `payload.signature`, where the signature is HMAC-SHA256 with `SESSION_SECRET`. Editing the payload (e.g. role to ADMIN) breaks the signature, and the cookie is rejected.
+3. `middleware.ts` checks the cookie on every request, and the role on limited paths (Student/Coordinator vs Faculty/HOD vs Admin).
+4. API routes query through `withUserTransaction`, so PostgreSQL applies the GRANTs and RLS above. Even if the UI or middleware had a bug, the database would still refuse.
+
+### 12.7 Viva quick answers (phase 4)
+- **Procedure vs function?** A function returns a value and is used inside SQL; a procedure is `CALL`ed to perform an action. Ours does a multi-table insert plus conflict resolution.
+- **BEFORE vs AFTER trigger?** BEFORE can check or change the row before it is saved (our validation triggers); AFTER reacts to a change that already succeeded (the audit trigger).
+- **GRANT vs RLS?** GRANT = which tables and columns; RLS = which rows of those tables.
+- **What is SECURITY DEFINER, and why is it risky?** The routine runs with its owner's rights. That is dangerous if anyone can call it, so EXECUTE is revoked from PUBLIC, `search_path` is fixed, and the routine checks the caller itself.
