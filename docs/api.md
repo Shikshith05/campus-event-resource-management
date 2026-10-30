@@ -47,9 +47,9 @@ After a fresh reset, these approvers each have one pending item: `coordinator.tw
 | GET | `/api/availability` | logged in | venue calendar (everyone's PENDING/CONFIRMED bookings) |
 | GET | `/api/analytics` | Faculty, HOD, Admin | event, resource and venue statistics |
 | GET/POST | `/api/admin/venues` | Admin | list, create venues |
-| PATCH | `/api/admin/venues/{venueId}` | Admin | update or retire a venue |
+| PATCH | `/api/admin/venues/{venueId}` | Admin | partial update or retire a venue |
 | GET/POST | `/api/admin/resources` | Admin | list, create resources |
-| PATCH | `/api/admin/resources/{resourceId}` | Admin | update or retire a resource |
+| PATCH | `/api/admin/resources/{resourceId}` | Admin | partial update or retire a resource |
 | **POST** | **`/api/events/submit`** | logged in | submit a request and start its approval |
 | **GET** | **`/api/events/{eventId}/workflow`** | logged in, if the event is visible | approval timeline of one event |
 | **GET** | **`/api/approvals`** | Coordinator, Faculty, HOD, Admin | my approver inbox |
@@ -360,15 +360,34 @@ All administration routes require the `ADMIN` role. Venues and resources are ret
 { "name": "Lecture Hall C", "venue_type": "SEMINAR_HALL", "building": "Block C", "capacity": 180, "department_id": 3 }
 ```
 
-`PATCH /api/admin/venues/{venueId}` accepts the full editable venue record, including `is_active`:
+`PATCH /api/admin/venues/{venueId}` is a **partial update**: send only the fields to change (at least one). Fields that are left out keep their current value. Editable fields: `name`, `venue_type`, `building`, `capacity`, `department_id`, `is_active`.
+
+```json
+{ "capacity": 200 }
+```
+
+```json
+{ "is_active": false }
+```
+
+Sending the full record (as the admin page does) still works:
 
 ```json
 { "name": "Lecture Hall C", "venue_type": "SEMINAR_HALL", "building": "Block C", "capacity": 180, "department_id": 3, "is_active": true }
 ```
 
-Valid venue types are `AUDITORIUM`, `SEMINAR_HALL`, `CLASSROOM`, `LAB`, `OPEN_AIR`, `OTHER`. `department_id` and `building` may be `null`. `201` on create · `404` when the id does not exist · `400` invalid body · `403` wrong role.
+`200` returns the whole updated venue: `{ "venue": { "venue_id": 6, "name": "Lecture Hall C", ..., "is_active": true } }`.
 
-A venue capacity update returns `422` if it would fall below the attendance of an existing confirmed booking.
+Valid venue types are `AUDITORIUM`, `SEMINAR_HALL`, `CLASSROOM`, `LAB`, `OPEN_AIR`, `OTHER`. `department_id` and `building` may be `null` (send `null` to clear them).
+
+| Status | When |
+|---|---|
+| `201` | created (POST) |
+| `400` | invalid body, invalid value, or an empty object `{}` (`"Provide at least one field to update"`) |
+| `403` | not an admin |
+| `404` | the venue id does not exist |
+| `409` | another venue already has that `name` |
+| `422` | the new `capacity` is below the attendance of an existing confirmed booking (checked only when `capacity` is sent) |
 
 ### Resources: `/api/admin/resources`
 
@@ -378,12 +397,27 @@ A venue capacity update returns `422` if it would fall below the attendance of a
 { "name": "Portable Stage Light", "resource_type": "AV", "total_quantity": 4 }
 ```
 
-`PATCH /api/admin/resources/{resourceId}` accepts the full editable resource record, including `is_active`:
+`PATCH /api/admin/resources/{resourceId}` is a **partial update**: send only the fields to change (at least one). Editable fields: `name`, `resource_type`, `total_quantity`, `is_active`.
+
+```json
+{ "total_quantity": 6 }
+```
+
+The full record still works:
 
 ```json
 { "name": "Portable Stage Light", "resource_type": "AV", "total_quantity": 4, "is_active": true }
 ```
 
-Valid resource types are `AV`, `FURNITURE`, `POWER`, `DECOR`, `OTHER`. `total_quantity` may be zero. `201` on create · `404` when the id does not exist · `400` invalid body · `403` wrong role.
+`200` returns the whole updated resource: `{ "resource": { "resource_id": 3, "name": "PA System", "resource_type": "AV", "total_quantity": 6, "is_active": true } }`.
 
-A quantity update returns `422` if it would fall below the peak simultaneous quantity already assigned to confirmed bookings.
+Valid resource types are `AV`, `FURNITURE`, `POWER`, `DECOR`, `OTHER`. `total_quantity` may be zero.
+
+| Status | When |
+|---|---|
+| `201` | created (POST) |
+| `400` | invalid body, invalid value, or an empty object `{}` |
+| `403` | not an admin |
+| `404` | the resource id does not exist |
+| `409` | another resource already has that `name` |
+| `422` | the new `total_quantity` is below the peak quantity already used by confirmed bookings at the same time (checked only when `total_quantity` is sent) |
