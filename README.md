@@ -1,252 +1,248 @@
 # CERMS: Campus Event and Resource Management System
 
-DBMS Experiential Learning Level 3 project, PES University (Aug-Dec 2026).
+DBMS Experiential Learning Level 3 project, PES University (Aug–Dec 2026).
 
 **Team (Section G):** Shikshith V, Shreyas K M
 
-## What it does
+CERMS lets campus users submit events, request venues and equipment, and follow multi-stage approvals. It includes role-based pages for requesters, approvers, staff, and administrators.
 
-Students and club coordinators submit event requests: date and time, expected footfall, venue preference, and resources such as projectors, mics and chairs. CERMS then:
+## Features
 
-- **Allocates venues by priority.** When two requests clash for the same venue and time, it computes a priority score from four inputs: event category (academic > department > club > personal), the requester's role, how far in advance they booked, and their past cancellations and no-shows. The higher score gets the venue, and the other requester is offered alternates.
-- **Runs a multi-level approval workflow.** The chain (e.g. Club Coordinator, then Faculty Advisor, then HOD, then Admin) is configurable per event type and department. Each request has its own workflow instance with per-stage status.
-- **Enforces role-based access.** The roles are Student, Club Coordinator, Faculty, HOD and Admin.
+- Event request form with venue-conflict alternatives and optional equipment requests.
+- Venue calendar for pending and confirmed bookings.
+- Event request list with approval timelines and decision history.
+- Approval inbox with approve/reject actions and comments.
+- Staff analytics for event outcomes and venue/resource utilization.
+- Admin inventory pages for venues and resources.
+- PostgreSQL-enforced role access and row-level security; MongoDB stores workflow templates, instances, and audit history.
 
-## Tech stack
+## Technology
 
-| Layer | Technology | Holds |
+| Layer | Technology | Data |
 |---|---|---|
-| Relational DB | PostgreSQL 16 | users, roles, clubs, venues, resources, events, bookings, priority decisions |
-| Document DB | MongoDB | workflow templates, instances, audit history and notifications |
-| Web app | Next.js + TypeScript | login, role-based dashboard, event/availability/analytics API with database-enforced access control |
+| Relational database | PostgreSQL 16 | users, roles, clubs, venues, resources, events, bookings, priority decisions |
+| Document database | MongoDB 8 | workflow templates, instances, audit history, notifications |
+| Web application | Next.js 15, React 19, TypeScript | login, pages, and API routes |
+| Local services | Docker Compose | PostgreSQL and MongoDB |
 
-## Status
+## Repository layout
 
-- **Phase 3: integration foundation.** SQL booking logic, MongoDB workflow operations, audit/notification collections, and a Next.js API/dashboard foundation.
-- **Phase 4: queries, procedures, security (current).** DML and query catalogues, stored procedure + audit trigger, MongoDB Read/Update/Delete, login with signed session cookies, database roles and row-level security.
-- Later: event request form, calendar, approver inbox, admin management, and analytics pages.
-
-## Folder structure
-
-```
+```text
 .
-├── README.md
-├── docs/
-│   ├── er-diagram.md          ER diagram (Mermaid) and relationship table
-│   ├── schema.dbml            same schema for https://dbdiagram.io
-│   ├── schema-explanation.md  table-by-table explanation and normal forms (viva notes)
-│   └── api.md                 every API route: who may call it, request/response examples
+├── app/                    Next.js application
+│   ├── app/                Pages and API route handlers
+│   ├── lib/                Authentication, database, and workflow helpers
+│   ├── .env.example        Local connection settings template
+│   └── package.json
 ├── db/
-│   ├── sql/
-│   │   ├── schema.sql         PostgreSQL DDL: tables, keys, constraints, indexes
-│   │   ├── booking_logic.sql  validation, priority scoring and conflict resolution
-│   │   ├── views.sql          reporting, calendar, history and utilization views
-│   │   ├── analytics.sql      event and resource analytics views
-│   │   ├── procedures.sql     submit_booking_request procedure, alternate-venue function, audit trigger
-│   │   ├── seed.sql           placeholder sample data
-│   │   ├── rbac.sql           database roles, least-privilege GRANTs, row-level security + tests
-│   │   ├── workflow.sql       approver access: coordinator policy, workflow_context, approval_details, record_workflow_decision
-│   │   ├── dml.sql            INSERT/UPDATE/DELETE demo (rolls itself back)
-│   │   └── queries.sql        joins, subqueries, CTEs, recursive CTEs, aggregates, window function
-│   └── mongo/
-│       ├── workflow_templates.json   3 sample approval chains
-│       ├── workflow_instances.json   1 sample running approval
-│       ├── load.js                   mongosh script: loads sample data and creates indexes
-│       ├── workflow_engine.js        template selection, approval and delete operations
-│       ├── workflow_rud.js           labelled Read / Update / Delete demo + aggregation
-│       └── analytics.js              workflow aggregation reports
-└── app/                       Next.js app
-    ├── middleware.ts          login + role checks before every page and API route
-    ├── lib/session.ts         signed session cookie, roles, route rules
-    ├── lib/auth.ts            read the session in routes and pages
-    ├── lib/db.ts              PostgreSQL/MongoDB access; withUserTransaction (SET LOCAL ROLE)
-    ├── lib/workflow.ts        approval-workflow engine (TypeScript port of db/mongo/workflow_engine.js)
-    └── app/                   pages (/login, /dashboard, /) and API routes (/api/...)
+│   ├── sql/                Schema, seed data, procedures, views, and RBAC
+│   └── mongo/              Workflow data and MongoDB scripts
+├── docs/                   API reference and database design notes
+└── docker-compose.yml      Local PostgreSQL and MongoDB services
 ```
 
-## Running the database scripts
+## Requirements
 
-### Cross-platform Docker setup
+- Git.
+- Node.js 20.9 or newer and npm. The app uses Next.js 15; see the [Next.js system requirements](https://nextjs.org/docs/15/pages/getting-started/installation#system-requirements).
+- Docker Desktop with Docker Compose for the recommended setup. Docker Desktop is available for [macOS](https://docs.docker.com/desktop/setup/install/mac-install/) and [Windows](https://docs.docker.com/desktop/setup/install/windows-install/).
+- If not using Docker: PostgreSQL 16, MongoDB 8, `psql`, and `mongosh` installed and available in your terminal.
 
-Docker Desktop is the simplest way to run the same PostgreSQL and MongoDB
-versions on macOS, Windows, or Linux:
+Commands below assume you have opened a terminal at the repository root. The Docker commands work from macOS Terminal, Windows PowerShell, and Windows Git Bash. Native database setup includes separate shell examples.
 
-```bash
+## Quick start with Docker
+
+Docker Compose starts PostgreSQL and MongoDB. On a new database volume, PostgreSQL automatically applies the SQL files in the correct order and loads the sample data.
+
+### 1. Start the databases
+
+From the repository root:
+
+```sh
 docker compose up -d
+```
+
+Wait for PostgreSQL and MongoDB to finish starting. You can check their status with:
+
+```sh
+docker compose ps
+```
+
+### 2. Load the MongoDB sample workflows
+
+The MongoDB image includes `mongosh`; the script and JSON data are mounted in the container:
+
+```sh
+docker compose exec -T mongodb mongosh "mongodb://localhost:27017/cerms" /db/mongo/load.js
+```
+
+This resets the four workflow collections and loads the sample templates and workflow instances. Run it after a fresh database setup, or whenever you intentionally want to reload those samples.
+
+### 3. Configure the app
+
+In a second terminal, create `app/.env.local` from the example.
+
+**macOS Terminal / Git Bash:**
+
+```sh
 cd app
 cp .env.example .env.local
+openssl rand -base64 48
+```
+
+**Windows PowerShell:**
+
+```powershell
+Set-Location app
+Copy-Item .env.example .env.local
+$secretBytes = New-Object byte[] 48
+[Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($secretBytes)
+[Convert]::ToBase64String($secretBytes)
+```
+
+Copy the generated value into the `SESSION_SECRET` line in `app/.env.local`. Keep the database values from `.env.example` for the Docker setup. The app connects as `cerms_app`, which is required for PostgreSQL row-level security; do not change it to the database owner/superuser.
+
+### 4. Install and run the web app
+
+Run from the `app` directory:
+
+```sh
 npm install
 npm run dev
 ```
 
-The SQL files are applied automatically when the PostgreSQL volume is created.
-To reset the database and reload the seed data:
+Open <http://localhost:3000/login>. To stop the development server, press `Ctrl+C` in its terminal. Stop the databases with `docker compose down` from the repository root.
 
-```bash
+## Run without Docker
+
+Install PostgreSQL 16 and MongoDB 8 locally, start both services, and make sure `psql` and `mongosh` are on `PATH`. The database scripts below are run from the repository root.
+
+### Reset and initialize PostgreSQL
+
+Stop the app before resetting because active PostgreSQL connections can prevent the database from being dropped.
+
+**macOS Terminal / Git Bash / Linux shell:**
+
+```sh
+psql -U postgres -c "DROP DATABASE IF EXISTS cerms" -c "CREATE DATABASE cerms"
+for sqlFile in schema views booking_logic analytics procedures seed rbac workflow; do
+  psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f "db/sql/$sqlFile.sql" || exit 1
+done
+```
+
+**Windows PowerShell:**
+
+```powershell
+psql -U postgres -c "DROP DATABASE IF EXISTS cerms" -c "CREATE DATABASE cerms"
+if ($LASTEXITCODE -ne 0) { throw "Could not recreate database cerms" }
+
+$sqlFiles = @("schema", "views", "booking_logic", "analytics", "procedures", "seed", "rbac", "workflow")
+foreach ($sqlFile in $sqlFiles) {
+    psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f "db/sql/$sqlFile.sql"
+    if ($LASTEXITCODE -ne 0) { throw "Failed while applying db/sql/$sqlFile.sql" }
+}
+```
+
+The `rbac.sql` script intentionally prints five SQL `ERROR` lines in its permission/RLS checks. Those are expected; the script handles them and continues. The order matters: `workflow.sql` must run after `rbac.sql`.
+
+If PostgreSQL uses password authentication, add `-h localhost` to the `psql` commands and enter the PostgreSQL administrator password when prompted.
+
+### Load MongoDB data
+
+Run this from the repository root after MongoDB is running:
+
+```sh
+mongosh "mongodb://localhost:27017/cerms" db/mongo/load.js
+```
+
+The same command works in macOS Terminal, Windows PowerShell, and Git Bash when `mongosh` is installed and on `PATH`.
+
+## App configuration
+
+`app/.env.example` contains the local connection values:
+
+```dotenv
+DATABASE_URL=postgresql://cerms_app:cerms_app_dev@localhost:5432/cerms
+MONGODB_URI=mongodb://localhost:27017/cerms
+SESSION_SECRET=replace-with-a-long-random-development-secret
+```
+
+Copy this file to `app/.env.local` and replace `SESSION_SECRET` with a unique random value of at least 32 characters. `rbac.sql` creates `cerms_app` with the development password shown in the example. Never use these development credentials on a shared or public deployment.
+
+## Logins
+
+All seeded accounts use the development-only password **`password123`**.
+
+| Email | Role |
+|---|---|
+| `student.one@campus.example` | Student |
+| `student.two@campus.example` | Student |
+| `coordinator.one@campus.example` | Club Coordinator |
+| `coordinator.two@campus.example` | Club Coordinator |
+| `faculty.one@campus.example` | Faculty |
+| `faculty.two@campus.example` | Faculty |
+| `hod.cse@campus.example` | HOD |
+| `hod.ece@campus.example` | HOD |
+| `admin.one@campus.example` | Admin |
+
+After a fresh reset, the approver inbox samples include pending items for Coordinator Two, Faculty Two, HOD CSE, and Admin One.
+
+## Pages and access
+
+| Page | Access |
+|---|---|
+| `/login` | Public sign-in |
+| `/dashboard` | All signed-in users |
+| `/events/new` | All signed-in users |
+| `/events` | All signed-in users; visible rows depend on the account's database permissions |
+| `/availability` | All signed-in users |
+| `/approvals` | Club Coordinator, Faculty, HOD, Admin |
+| `/analytics` | Faculty, HOD, Admin |
+| `/admin` | Admin |
+
+Guest Lecture is intentionally not offered in the request form because its API currently requires guest details that the form does not collect. The API reference, including request/response examples, is in [docs/api.md](docs/api.md).
+
+## Useful development commands
+
+Run these from `app/`:
+
+```sh
+npm run dev       # start the development server at http://localhost:3000
+npm run lint      # TypeScript check (tsc --noEmit)
+npm run build     # create a production build
+npm run start     # serve the production build
+```
+
+There is no automated test script in `package.json` yet. The `lint` script currently runs TypeScript checking; it does not run ESLint.
+
+## Resetting Docker data
+
+To rebuild the databases from scratch, run from the repository root:
+
+```sh
 docker compose down -v
 docker compose up -d
 ```
 
-Load the MongoDB sample workflow data from the repository root:
+Then reload MongoDB with the command from the quick start. **The `-v` option deletes both database volumes and all data in them.** PostgreSQL initialization scripts run automatically only when its data volume is empty.
 
-```bash
-docker compose exec mongodb mongosh cerms db/mongo/load.js
-docker compose exec mongodb mongosh cerms db/mongo/workflow_engine.js
-docker compose exec mongodb mongosh cerms db/mongo/workflow_rud.js
-```
+## Database project files
 
-`docker-compose.yml` mounts `./db/mongo` into the container at `/db/mongo`,
-so these paths work inside the `mongodb` service.
-
-The application is then available at <http://localhost:3000>.
-
-### PostgreSQL
-
-```bash
-# 1. create the database once
-psql -U postgres -c "CREATE DATABASE cerms;"
-
-# 2. create the tables (drops existing CERMS tables first)
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/schema.sql
-
-# 3. create reporting and availability views
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/views.sql
-
-# 4. create booking validation and priority functions
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/booking_logic.sql
-
-# 5. create analytics views
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/analytics.sql
-
-# 6. create the stored procedure, alternate-venue function and audit trigger
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/procedures.sql
-
-# 7. load the placeholder data (wipes existing CERMS data first)
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/seed.sql
-
-# 8. database roles, GRANTs and row-level security
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/rbac.sql
-
-# 9. approval-workflow access: coordinator policy + approver functions
-#    (must run after rbac.sql, and again whenever rbac.sql is re-run)
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/workflow.sql
-
-# optional demos (run after the seed; dml.sql rolls itself back)
-psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/dml.sql
-psql -U postgres -d cerms -f db/sql/queries.sql
-```
-
-If PostgreSQL runs inside WSL, run these from the WSL shell after `cd /mnt/d/projects/campus-event-resource-management`. Add `-h localhost` if your setup asks for a password over TCP.
-
-**Expected ERROR lines.** Some statements are *meant* to fail, to show that a
-constraint, trigger or permission works. They run inside a `SAVEPOINT`, so the
-script carries on and exits successfully:
-
-- `rbac.sql` prints 5 (tests T5, T6, T7, T8, T10: permission denied / row-level security)
-- `dml.sql` prints 4 (7a double booking, 7b end before start, 7c club without club, 8c procedure failure)
-
-`schema.sql` uses the `btree_gist` extension, which ships with standard PostgreSQL. It powers the "no double-booking" constraint.
-
-### MongoDB
-
-```bash
-mongosh "mongodb://localhost:27017/cerms" db/mongo/load.js
-```
-
-This drops and reloads all four workflow collections (`workflow_templates`, `workflow_instances`, `workflow_audit`, `workflow_notifications`) and creates their indexes.
-Alternatively, with MongoDB Database Tools installed:
-
-```bash
-mongoimport --db cerms --collection workflow_templates --jsonArray --file db/mongo/workflow_templates.json
-mongoimport --db cerms --collection workflow_instances --jsonArray --file db/mongo/workflow_instances.json
-```
-
-Load the workflow operations after the sample data:
-
-```bash
-mongosh "mongodb://localhost:27017/cerms" db/mongo/workflow_engine.js
-mongosh "mongodb://localhost:27017/cerms" db/mongo/analytics.js
-```
-
-The workflow engine exposes `createWorkflowInstance`, `approveWorkflowStage`,
-`rejectWorkflowStage`, `escalateOverdueStages`, `deleteWorkflowForEvent` and
-`purgeOldNotifications` to the application layer.
-
-Read / Update / Delete demonstration (run right after `load.js`, which resets
-the collections):
-
-```bash
-mongosh "mongodb://localhost:27017/cerms" db/mongo/workflow_rud.js
-```
-
-### Next.js application
-
-```bash
-cd app
-cp .env.example .env.local
-npm install
-npm run dev
-```
-
-Open <http://localhost:3000/login>. The app connects to PostgreSQL as
-`cerms_app` (created by `rbac.sql`), so run `rbac.sql` before starting it.
-
-#### Login credentials (DEVELOPMENT ONLY)
-
-Every sample user in `seed.sql` has the password **`password123`**, stored
-as a real bcrypt hash. These accounts and the database role passwords in
-`rbac.sql` (`cerms_app_dev`, `password123`) are for local development only.
-Never use them on a shared or public server.
-
-| Email | App role | Database role |
-|---|---|---|
-| `student.one@campus.example` | Student | `cerms_student` |
-| `coordinator.one@campus.example` | Club Coordinator | `cerms_student` |
-| `faculty.one@campus.example` | Faculty | `cerms_faculty` |
-| `hod.cse@campus.example` | HOD | `cerms_faculty` |
-| `admin.one@campus.example` | Admin | `cerms_admin` |
-
-#### Endpoints
-
-| Endpoint | Access |
+| Topic | File |
 |---|---|
-| `POST /api/auth/login` | public: email + password, sets the signed `cerms_session` cookie |
-| `POST /api/auth/logout` | clears the cookie |
-| `GET /api/auth/me` | any logged-in user |
-| `GET /api/health` | public |
-| `GET /api/events` | any logged-in user (a student sees only their own requests: row-level security) |
-| `GET /api/availability` | any logged-in user |
-| `GET /api/analytics` | Faculty, HOD, Admin |
-| `POST /api/events/submit` | any logged-in user: submit a request and start its approval workflow |
-| `GET /api/events/{eventId}/workflow` | anyone who can see the event: approval timeline |
-| `GET /api/approvals` | Club Coordinator, Faculty, HOD, Admin: my pending approvals |
-| `POST /api/approvals/{eventId}` | the assigned approver only: approve or reject |
-| `/login`, `/dashboard` | login page; dashboard with a role-specific section |
+| Tables, keys, constraints, indexes | `db/sql/schema.sql` |
+| Validation, priority scoring, conflict resolution | `db/sql/booking_logic.sql` |
+| Calendar, request, and utilization views | `db/sql/views.sql` |
+| Analytics views | `db/sql/analytics.sql` |
+| Submission procedure and audit trigger | `db/sql/procedures.sql` |
+| Sample relational data | `db/sql/seed.sql` |
+| Roles, grants, row-level security, and policy demonstrations | `db/sql/rbac.sql` |
+| Workflow-aware access and approval functions | `db/sql/workflow.sql` |
+| SQL query catalogue | `db/sql/queries.sql` |
+| Reversible DML demonstration | `db/sql/dml.sql` |
+| MongoDB sample loader | `db/mongo/load.js` |
+| MongoDB workflow engine demonstration | `db/mongo/workflow_engine.js` |
+| MongoDB read/update/delete demonstration | `db/mongo/workflow_rud.js` |
+| Database diagram and design notes | `docs/er-diagram.md`, `docs/schema.dbml`, `docs/schema-explanation.md` |
 
-Full request/response examples: [docs/api.md](docs/api.md).
-
-## What each file demonstrates
-
-| Topic | File | What to look at |
-|---|---|---|
-| DDL with constraints | `db/sql/schema.sql` | PK/FK/UNIQUE/CHECK, exclusion constraint against double booking |
-| DML | `db/sql/dml.sql` | INSERT, UPDATE, DELETE, `UPDATE ... FROM`, `INSERT ... SELECT`, CASCADE, SAVEPOINTs |
-| Joins, nested, correlated and recursive queries | `db/sql/queries.sql` | sections A-G, each query answers a question written above it |
-| Functions and triggers | `db/sql/booking_logic.sql`, `db/sql/procedures.sql` | priority score, conflict resolution, validation triggers, status audit trigger |
-| Stored procedure | `db/sql/procedures.sql` | `submit_booking_request`, called with `CALL` in `dml.sql` section 8 |
-| Views | `db/sql/views.sql`, `db/sql/analytics.sql` | calendar, history and analytics views |
-| Database RBAC and row-level security | `db/sql/rbac.sql` | roles, GRANTs, policies, test section T1-T11 |
-| NoSQL create / aggregation | `db/mongo/load.js`, `workflow_engine.js`, `analytics.js` | templates, instances, audit, notifications |
-| NoSQL Read / Update / Delete | `db/mongo/workflow_rud.js` | labelled R1-R5, U1-U4, D1-D3 |
-| Authentication | `app/app/api/auth/*`, `app/middleware.ts`, `app/lib/session.ts` | bcrypt, signed httpOnly cookie, role checks |
-| Database-enforced access from the app | `app/lib/db.ts` | `withUserTransaction`: `SET LOCAL ROLE` + `app.current_user_id` |
-
-## About the sample data
-
-Real venue counts, capacities and equipment quantities will come from a campus survey. Until then, every name, number, person and date in `db/sql/seed.sql` and `db/mongo/*.json` is a placeholder, marked with `PLACEHOLDER: replace after campus survey`. The schema itself does not depend on any of these values. Only the five role rows are real design data.
-
-## Documents
-
-- [docs/er-diagram.md](docs/er-diagram.md): ER diagram
-- [docs/schema-explanation.md](docs/schema-explanation.md): design explanation and normalization
-- [docs/api.md](docs/api.md): API routes for the front end
+Sample people, venue names, capacities, equipment counts, and event data are placeholders for the campus survey. Development passwords and database-role passwords are for local use only.

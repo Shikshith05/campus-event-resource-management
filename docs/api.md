@@ -42,9 +42,14 @@ After a fresh reset, these approvers each have one pending item: `coordinator.tw
 | POST | `/api/auth/logout` | anyone | clear the cookie |
 | GET | `/api/auth/me` | logged in | who am I |
 | GET | `/api/health` | public | both databases reachable? |
+| GET | `/api/event-options` | logged in | departments, active venues/resources and my clubs for the request form |
 | GET | `/api/events` | logged in | event requests (students: own only; coordinators: own + their club's) |
 | GET | `/api/availability` | logged in | venue calendar (everyone's PENDING/CONFIRMED bookings) |
 | GET | `/api/analytics` | Faculty, HOD, Admin | event, resource and venue statistics |
+| GET/POST | `/api/admin/venues` | Admin | list, create venues |
+| PATCH | `/api/admin/venues/{venueId}` | Admin | update or retire a venue |
+| GET/POST | `/api/admin/resources` | Admin | list, create resources |
+| PATCH | `/api/admin/resources/{resourceId}` | Admin | update or retire a resource |
 | **POST** | **`/api/events/submit`** | logged in | submit a request and start its approval |
 | **GET** | **`/api/events/{eventId}/workflow`** | logged in, if the event is visible | approval timeline of one event |
 | **GET** | **`/api/approvals`** | Coordinator, Faculty, HOD, Admin | my approver inbox |
@@ -79,6 +84,21 @@ After a fresh reset, these approvers each have one pending item: `coordinator.tw
 ---
 
 ## Submitting a request
+
+### `GET /api/event-options`: any logged-in user
+
+Returns the active reference data used by the event request form. The club list contains only active clubs where the logged-in user is a member.
+
+```json
+{
+  "departments": [{ "department_id": 1, "code": "CSE", "name": "Computer Science and Engineering" }],
+  "venues": [{ "venue_id": 1, "name": "Auditorium 1", "venue_type": "AUDITORIUM", "building": "Main Block", "capacity": 500 }],
+  "resources": [{ "resource_id": 1, "name": "Projector", "resource_type": "AV", "total_quantity": 10 }],
+  "clubs": [{ "club_id": 1, "name": "Coding Club", "department_id": 1 }]
+}
+```
+
+`401` · `503`.
 
 ### `POST /api/events/submit`: any logged-in user
 
@@ -327,3 +347,43 @@ Stage `status`: `NOT_STARTED`, `PENDING`, `APPROVED`, `REJECTED`, `SKIPPED`. Wor
 | `GET /api/events` | `{ "events": [ ...rows of event_request_summary... ] }`, one row per event and booking |
 | `GET /api/availability` | `{ "schedule": [ ...rows of venue_booking_schedule... ] }` |
 | `GET /api/analytics` | `{ "events": [...], "resources": [...], "venues": [...] }` (Faculty/HOD/Admin; others `403`) |
+
+## Administration
+
+All administration routes require the `ADMIN` role. Venues and resources are retired with `is_active: false` instead of deleted, so older bookings retain their references. Every database read and write runs as the logged-in admin role.
+
+### Venues: `/api/admin/venues`
+
+`GET` returns `{ "venues": [...], "departments": [...] }`, including inactive venues for inventory management. `POST` creates an active venue:
+
+```json
+{ "name": "Lecture Hall C", "venue_type": "SEMINAR_HALL", "building": "Block C", "capacity": 180, "department_id": 3 }
+```
+
+`PATCH /api/admin/venues/{venueId}` accepts the full editable venue record, including `is_active`:
+
+```json
+{ "name": "Lecture Hall C", "venue_type": "SEMINAR_HALL", "building": "Block C", "capacity": 180, "department_id": 3, "is_active": true }
+```
+
+Valid venue types are `AUDITORIUM`, `SEMINAR_HALL`, `CLASSROOM`, `LAB`, `OPEN_AIR`, `OTHER`. `department_id` and `building` may be `null`. `201` on create · `404` when the id does not exist · `400` invalid body · `403` wrong role.
+
+A venue capacity update returns `422` if it would fall below the attendance of an existing confirmed booking.
+
+### Resources: `/api/admin/resources`
+
+`GET` returns `{ "resources": [...] }`, including inactive resources. `POST` creates an active resource:
+
+```json
+{ "name": "Portable Stage Light", "resource_type": "AV", "total_quantity": 4 }
+```
+
+`PATCH /api/admin/resources/{resourceId}` accepts the full editable resource record, including `is_active`:
+
+```json
+{ "name": "Portable Stage Light", "resource_type": "AV", "total_quantity": 4, "is_active": true }
+```
+
+Valid resource types are `AV`, `FURNITURE`, `POWER`, `DECOR`, `OTHER`. `total_quantity` may be zero. `201` on create · `404` when the id does not exist · `400` invalid body · `403` wrong role.
+
+A quantity update returns `422` if it would fall below the peak simultaneous quantity already assigned to confirmed bookings.

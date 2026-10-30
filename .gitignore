@@ -1,0 +1,11 @@
+# macOS and Windows file-manager metadata
+.DS_Store
+**/.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local application builds and dependencies
+/app/node_modules/
+/app/.next/
+/app/*.tsbuildinfo
+/app/.env.local
