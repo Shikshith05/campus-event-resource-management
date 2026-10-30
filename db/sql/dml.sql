@@ -200,5 +200,58 @@ ROLLBACK TO SAVEPOINT expect_club_without_club;
 SELECT 'all expected failures were caught; transaction still usable' AS result;
 
 
+-- ---------------------------------------------------------------------
+-- 8. The same kind of request through the stored PROCEDURE
+--    submit_booking_request (procedures.sql). It inserts event + booking
+--    + resources and calls resolve_booking_conflict() in one go.
+--    The web app sets app.current_user_id for every request; here we act
+--    as Student One (user 1). set_config(..., true) = SET LOCAL.
+-- ---------------------------------------------------------------------
+SELECT set_config('app.current_user_id', '1', true);
+
+-- 8a. A request with no competition: the venue is allocated (CONFIRMED).
+--     Exercises trg_validate_event_submission (member of club 1) and
+--     trg_validate_confirmed_booking (40 people <= Classroom 101's 60 seats).
+CALL submit_booking_request(
+    1, 'Coding Club Workshop', 'CLUB', 'WORKSHOP', 1, 1, 40,
+    4, '2026-12-03 14:00+05:30', '2026-12-03 16:00+05:30',
+    ARRAY[1], ARRAY[1]                          -- 1 projector
+);
+
+-- 8b. A request that clashes with confirmed booking 1 (Seminar Hall A,
+--     12 Nov 10:00-12:00): it is REJECTED and a NOTICE lists alternates.
+CALL submit_booking_request(
+    1, 'Study Group Revision', 'PERSONAL', 'OTHER', NULL, NULL, 20,
+    2, '2026-11-12 10:30+05:30', '2026-11-12 11:30+05:30',
+    NULL, NULL                                  -- no resources
+);
+
+-- The suggestions on their own (function with a CTE), for the request
+-- that just lost. currval() gives the last booking_id used in this session.
+SELECT * FROM suggest_alternate_venues(currval(pg_get_serial_sequence('booking', 'booking_id'))::INT);
+
+-- The audit trigger trg_log_booking_status recorded both steps:
+-- created as PENDING, then changed to REJECTED.
+SELECT booking_id, old_status, new_status, changed_at
+FROM booking_status_history
+WHERE booking_id = currval(pg_get_serial_sequence('booking', 'booking_id'))
+ORDER BY history_id;
+
+-- 8c. EXPECTED TO FAIL: 900 people fit in no venue. The procedure raises
+--     one clear error and none of its rows are kept (atomic).
+--     Expected: ERROR submit_booking_request failed for "Mega Fest": Booking ... requires capacity 900 ...
+SAVEPOINT expect_procedure_failure;
+\set ON_ERROR_STOP off
+CALL submit_booking_request(
+    1, 'Mega Fest', 'CLUB', 'TECH_FEST', 1, 1, 900,
+    5, '2026-12-08 09:00+05:30', '2026-12-08 18:00+05:30',
+    NULL, NULL
+);
+\set ON_ERROR_STOP on
+ROLLBACK TO SAVEPOINT expect_procedure_failure;
+
+SELECT COUNT(*) AS mega_fest_rows_left FROM event WHERE title = 'Mega Fest';
+
+
 -- Undo everything above so the seed data is unchanged.
 ROLLBACK;

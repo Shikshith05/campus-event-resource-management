@@ -152,6 +152,20 @@ Table booking_conflict_log {
   Note: 'CHECK winning <> losing; CHECK decided_by IS NOT NULL OR winner_score >= loser_score'
 }
 
+Table booking_status_history {
+  history_id int [pk, increment]
+  booking_id int [not null]
+  old_status varchar(20) [note: 'NULL = the booking was just created']
+  new_status varchar(20) [not null]
+  changed_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (booking_id, changed_at) [name: 'idx_status_history_booking']
+  }
+
+  Note: 'Written only by trigger trg_log_booking_status. CHECK old_status IS DISTINCT FROM new_status'
+}
+
 // Foreign keys with their ON DELETE behaviour
 Ref: app_user.role_id > role.role_id [delete: restrict]
 Ref: app_user.department_id > department.department_id [delete: restrict]
@@ -173,3 +187,4 @@ Ref: booking_resource.resource_id > resource.resource_id [delete: restrict]
 Ref: booking_conflict_log.winning_booking_id > booking.booking_id [delete: restrict]
 Ref: booking_conflict_log.losing_booking_id > booking.booking_id [delete: restrict]
 Ref: booking_conflict_log.decided_by > app_user.user_id [delete: restrict]
+Ref: booking_status_history.booking_id > booking.booking_id [delete: cascade]

@@ -1,6 +1,6 @@
 # CERMS: ER Diagram
 
-This diagram covers the PostgreSQL side of CERMS: 13 tables, matching [db/sql/schema.sql](../db/sql/schema.sql).
+This diagram covers the PostgreSQL side of CERMS: 14 tables, matching [db/sql/schema.sql](../db/sql/schema.sql).
 The approval workflow lives in MongoDB and is described at the end of this page.
 
 For a nicer image, paste [schema.dbml](schema.dbml) into <https://dbdiagram.io>.
@@ -130,6 +130,14 @@ erDiagram
         timestamptz decided_at
     }
 
+    BOOKING_STATUS_HISTORY {
+        int history_id PK
+        int booking_id FK
+        varchar old_status "nullable = just created"
+        varchar new_status
+        timestamptz changed_at
+    }
+
     ROLE             ||--o{ APP_USER             : "is assigned to"
     DEPARTMENT       |o--o{ APP_USER             : "has"
     DEPARTMENT       |o--o{ CLUB                 : "hosts"
@@ -150,6 +158,7 @@ erDiagram
     BOOKING          ||--o{ BOOKING_CONFLICT_LOG : "wins"
     BOOKING          ||--o{ BOOKING_CONFLICT_LOG : "loses"
     APP_USER         |o--o{ BOOKING_CONFLICT_LOG : "overrides"
+    BOOKING          ||--o{ BOOKING_STATUS_HISTORY : "has history"
 ```
 
 ## Relationships in words
@@ -169,6 +178,7 @@ erDiagram
 | Booking to Resource | **M : N** | resolved by the bridge table `BOOKING_RESOURCE`, which also holds the quantity |
 | Booking to Conflict Log | 1 : N, twice | a booking can appear as the winner or the loser of a decision |
 | User (admin) to Conflict Log | 1 : N, optional | set only when an admin overrides the automatic decision |
+| Booking to Status History | 1 : N | one row per status change, written by the trigger `trg_log_booking_status` |
 
 Rules that the diagram cannot show (they are CHECK constraints in the DDL):
 

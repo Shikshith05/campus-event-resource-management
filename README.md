@@ -40,7 +40,10 @@ Students and club coordinators submit event requests: date and time, expected fo
 │   │   ├── booking_logic.sql  validation, priority scoring and conflict resolution
 │   │   ├── views.sql          reporting, calendar, history and utilization views
 │   │   ├── analytics.sql      event and resource analytics views
-│   │   └── seed.sql           placeholder sample data
+│   │   ├── procedures.sql     submit_booking_request procedure, alternate-venue function, audit trigger
+│   │   ├── seed.sql           placeholder sample data
+│   │   ├── dml.sql            INSERT/UPDATE/DELETE demo (rolls itself back)
+│   │   └── queries.sql        joins, subqueries, CTEs, recursive CTEs, aggregates, window function
 │   └── mongo/
 │       ├── workflow_templates.json   3 sample approval chains
 │       ├── workflow_instances.json   1 sample running approval
@@ -100,8 +103,15 @@ psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/booking_logic.sql
 # 5. create analytics views
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/analytics.sql
 
-# 6. load the placeholder data (wipes existing CERMS data first)
+# 6. create the stored procedure, alternate-venue function and audit trigger
+psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/procedures.sql
+
+# 7. load the placeholder data (wipes existing CERMS data first)
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/seed.sql
+
+# optional demos (run after the seed; dml.sql rolls itself back)
+psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/dml.sql
+psql -U postgres -d cerms -f db/sql/queries.sql
 ```
 
 If PostgreSQL runs inside WSL, run these from the WSL shell after `cd /mnt/d/projects/campus-event-resource-management`. Add `-h localhost` if your setup asks for a password over TCP.

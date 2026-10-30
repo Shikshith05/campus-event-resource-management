@@ -15,7 +15,7 @@
 
 BEGIN;
 
-TRUNCATE booking_conflict_log, booking_resource, booking, event,
+TRUNCATE booking_status_history, booking_conflict_log, booking_resource, booking, event,
          event_venue_preference, guest_lecture_details, resource, venue,
          club_member, club,
          app_user, role, department

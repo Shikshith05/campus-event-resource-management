@@ -15,12 +15,12 @@ CERMS uses **two databases**, each for what it is good at:
 | Why | Fixed structure, must never be wrong: foreign keys, CHECK constraints and ACID transactions stop double-booking | Each event type needs a different number of approval steps, with different fields. That is a natural fit for a nested document and an awkward fit for fixed tables |
 | Special feature used | **Exclusion constraint** on a time range: the database itself refuses two confirmed bookings of the same venue at overlapping times. MySQL has no equivalent | Nested arrays of stages; the aggregation pipeline (later) for approval-turnaround analytics |
 
-The 13 PostgreSQL tables fall into four groups:
+The 14 PostgreSQL tables fall into four groups:
 
 - **Master data:** `department`, `role`, `app_user`, `club`, `venue`, `resource`
 - **Bridge tables (M:N):** `club_member`, `booking_resource`
 - **Transactions:** `event`, `booking`
-- **Audit:** `booking_conflict_log`
+- **Audit:** `booking_conflict_log`, `booking_status_history`
 
 ---
 
@@ -33,7 +33,7 @@ The 13 PostgreSQL tables fall into four groups:
 | 3NF | 2NF, and no non-key column depends on another non-key column (no transitive dependency) |
 | BCNF | Every column that determines other columns is a candidate key |
 
-**Result: all 13 tables are in 3NF, and in fact in BCNF.** In every table, the only things that determine other columns are the primary key or another UNIQUE column.
+**Result: all 14 tables are in 3NF, and in fact in BCNF.** In every table, the only things that determine other columns are the primary key or another UNIQUE column.
 Section 4 lists the data we deliberately did *not* store, because storing it would break 3NF.
 
 ---
@@ -127,6 +127,13 @@ Section 4 lists the data we deliberately did *not* store, because storing it wou
   - `chk_conflict_auto_follows_score`: an automatic decision (`decided_by IS NULL`) must give the venue to the higher score. Only an admin override may pick the lower one.
 - **Relationships:** two N : 1 links to `booking` (winner and loser) and an optional N : 1 to `app_user` (the overriding admin). All are RESTRICT, so a booking that was part of a decision cannot be deleted, only cancelled.
 - **Normal form:** BCNF. The venue is *not* stored, because it can be derived from the winning booking. The scores look derived but are not: they are a **snapshot at decision time**. Cancellation counts and weights change later, so recomputing would give a different answer than the one actually used.
+
+### 3.12 `booking_status_history`
+- **Purpose:** Audit trail of a booking's life: one row when it is created (`old_status` NULL) and one row for every later status change (PENDING -> CONFIRMED -> NO_SHOW ...).
+- **Key constraints:** PK `history_id`; `new_status` NOT NULL; `chk_history_status_changed` (old and new status must differ).
+- **Who writes it:** only the trigger `trg_log_booking_status` ([procedures.sql](../db/sql/procedures.sql)). No application role has INSERT on this table, so audit rows cannot be faked.
+- **Relationships:** N : 1 to `booking`, ON DELETE CASCADE: deleting a draft event deletes its bookings and their history. Bookings that matter for audit are cancelled, not deleted.
+- **Normal form:** BCNF. Every column depends only on `history_id`. `old_status` is not derivable from other rows reliably, because history is append-only.
 
 ---
 
@@ -238,7 +245,7 @@ Sample files: [workflow_templates.json](../db/mongo/workflow_templates.json), [w
 
 ---
 
-## 9. Why only these 13 tables
+## 9. Why only these 14 tables
 
 Things we considered and left out, to keep the design simple:
 
@@ -271,4 +278,4 @@ Things we considered and left out, to keep the design simple:
 - **Why not store the cancellation count on the user?** It can be derived from bookings, and storing it would risk disagreement (an update anomaly).
 - **Why two databases?** Core records need strict integrity and transactions (PostgreSQL). Approval chains have a different shape per event type (MongoDB documents).
 - **What happens if a user leaves?** They are deactivated, not deleted. RESTRICT foreign keys protect their history.
-- **Is the design in 3NF?** Yes, all 13 tables are in 3NF, and in BCNF. Every determinant is a candidate key, and derived data is computed rather than stored (section 4).
+- **Is the design in 3NF?** Yes, all 14 tables are in 3NF, and in BCNF. Every determinant is a candidate key, and derived data is computed rather than stored (section 4).
