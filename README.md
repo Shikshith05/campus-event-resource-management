@@ -125,7 +125,7 @@ Stop the app before resetting because active PostgreSQL connections can prevent 
 
 ```sh
 psql -U postgres -c "DROP DATABASE IF EXISTS cerms" -c "CREATE DATABASE cerms"
-for sqlFile in schema views booking_logic analytics procedures seed rbac workflow; do
+for sqlFile in schema views booking_logic analytics procedures seed rbac workflow guest_lecture; do
   psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f "db/sql/$sqlFile.sql" || exit 1
 done
 ```
@@ -136,14 +136,14 @@ done
 psql -U postgres -c "DROP DATABASE IF EXISTS cerms" -c "CREATE DATABASE cerms"
 if ($LASTEXITCODE -ne 0) { throw "Could not recreate database cerms" }
 
-$sqlFiles = @("schema", "views", "booking_logic", "analytics", "procedures", "seed", "rbac", "workflow")
+$sqlFiles = @("schema", "views", "booking_logic", "analytics", "procedures", "seed", "rbac", "workflow", "guest_lecture")
 foreach ($sqlFile in $sqlFiles) {
     psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f "db/sql/$sqlFile.sql"
     if ($LASTEXITCODE -ne 0) { throw "Failed while applying db/sql/$sqlFile.sql" }
 }
 ```
 
-The `rbac.sql` script intentionally prints five SQL `ERROR` lines in its permission/RLS checks. Those are expected; the script handles them and continues. The order matters: `workflow.sql` must run after `rbac.sql`.
+The `rbac.sql` script intentionally prints five SQL `ERROR` lines in its permission/RLS checks. Those are expected; the script handles them and continues. The order matters: `workflow.sql` and then `guest_lecture.sql` must run after `rbac.sql` (re-run both whenever `rbac.sql` is re-run).
 
 If PostgreSQL uses password authentication, add `-h localhost` to the `psql` commands and enter the PostgreSQL administrator password when prompted.
 
@@ -200,7 +200,7 @@ After a fresh reset, the approver inbox samples include pending items for Coordi
 | `/analytics` | Faculty, HOD, Admin |
 | `/admin` | Admin |
 
-Guest Lecture is intentionally not offered in the request form because its API currently requires guest details that the form does not collect. The API reference, including request/response examples, is in [docs/api.md](docs/api.md).
+Guest Lecture is offered in the request form only to Faculty, HOD and Admin accounts; it asks for the guest speaker, affiliation and talk topic, and is approved by the HOD and then the admin office. The API reference, including request/response examples, is in [docs/api.md](docs/api.md).
 
 ## Useful development commands
 
@@ -238,6 +238,7 @@ Then reload MongoDB with the command from the quick start. **The `-v` option del
 | Sample relational data | `db/sql/seed.sql` |
 | Roles, grants, row-level security, and policy demonstrations | `db/sql/rbac.sql` |
 | Workflow-aware access and approval functions | `db/sql/workflow.sql` |
+| Guest-lecture details: insert grant and row-level security | `db/sql/guest_lecture.sql` |
 | SQL query catalogue | `db/sql/queries.sql` |
 | Reversible DML demonstration | `db/sql/dml.sql` |
 | MongoDB sample loader | `db/mongo/load.js` |

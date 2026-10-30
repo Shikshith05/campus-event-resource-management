@@ -20,7 +20,11 @@ type EventRow = {
   end_time: string | null;
   booking_status: string | null;
   preferred_venues: { venue_id: number; venue_name: string; preference_order: number }[] | null;
+  guest_name: string | null;
+  guest_affiliation: string | null;
+  talk_topic: string | null;
 };
+type GuestDetails = Pick<EventRow, "guest_name" | "guest_affiliation" | "talk_topic">;
 type TimelineStage = {
   stage_no: number;
   name: string;
@@ -127,11 +131,12 @@ export default function MyEvents() {
                   <div><span className="field-help">Venue</span><div>{event.venue_name ?? "Not assigned"}{event.building ? ` · ${event.building}` : ""}</div></div>
                   <div><span className="field-help">Event time</span><div>{event.start_time ? `${fmtDate(event.start_time)} – ${fmtDate(event.end_time)}` : "Not scheduled"}</div></div>
                 </div>
+                {event.guest_name && <GuestBlock guest={event} />}
                 {selectedId === event.event_id && (
                   <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
                     {timelineLoading && <p className="muted">Loading timeline…</p>}
                     {timelineError && <p className="message error" role="alert">{timelineError}</p>}
-                    {timeline && <WorkflowTimeline data={timeline} />}
+                    {timeline && <WorkflowTimeline data={timeline} guest={event.guest_name ? event : null} />}
                   </div>
                 )}
               </article>
@@ -143,12 +148,23 @@ export default function MyEvents() {
   );
 }
 
-function WorkflowTimeline({ data }: { data: WorkflowResponse }) {
+function GuestBlock({ guest }: { guest: GuestDetails }) {
+  return (
+    <div className="comment-box" style={{ marginTop: 14 }}>
+      <span className="field-help">Guest lecture</span>
+      <div><strong>{guest.guest_name}</strong>{guest.guest_affiliation ? ` · ${guest.guest_affiliation}` : ""}</div>
+      {guest.talk_topic && <div>Topic: {guest.talk_topic}</div>}
+    </div>
+  );
+}
+
+function WorkflowTimeline({ data, guest }: { data: WorkflowResponse; guest: GuestDetails | null }) {
   if (!data.workflow) return <div><h3 className="panel-title">Approval timeline</h3><p className="muted">This event does not have a workflow. It may still be a draft.</p></div>;
   return (
     <div className="grid two" style={{ marginTop: 16 }}>
       <div>
         <div className="card-head"><div><h3 className="panel-title">Approval progress</h3><p className="panel-copy">Submitted by {data.workflow.submitted_by_name ?? "requester"} · {fmtDate(data.workflow.submitted_at)}</p></div><span className={`pill ${statusClass(data.workflow.status)}`}>{data.workflow.status.replaceAll("_", " ")}</span></div>
+        {guest && <p className="timeline-detail" style={{ margin: "0 0 4px" }}>Guest lecture by {guest.guest_name}{guest.guest_affiliation ? ` (${guest.guest_affiliation})` : ""}{guest.talk_topic ? `: “${guest.talk_topic}”` : ""}</p>}
         <ol className="timeline">
           {data.workflow.stages.map(stage => {
             const done = ["APPROVED", "REJECTED", "SKIPPED"].includes(stage.status);

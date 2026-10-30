@@ -17,6 +17,7 @@ services:
       - ./db/sql/seed.sql:/docker-entrypoint-initdb.d/06-seed.sql:ro
       - ./db/sql/rbac.sql:/docker-entrypoint-initdb.d/07-rbac.sql:ro
       - ./db/sql/workflow.sql:/docker-entrypoint-initdb.d/08-workflow.sql:ro
+      - ./db/sql/guest_lecture.sql:/docker-entrypoint-initdb.d/09-guest-lecture.sql:ro
 
   mongodb:
     image: mongo:8

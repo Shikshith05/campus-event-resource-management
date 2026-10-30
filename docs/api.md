@@ -123,16 +123,49 @@ The organizer is **always the logged-in user** (never taken from the body).
 |---|---|
 | `title` | 3-150 characters |
 | `category` | `ACADEMIC`, `DEPARTMENT`, `CLUB`, `PERSONAL` |
-| `event_type` | `WORKSHOP`, `SEMINAR`, `TECH_FEST`, `CULTURAL`, `CLUB_MEET`, `ORIENTATION`, `COMPETITION`, `SPORTS`, `OTHER` (`GUEST_LECTURE` not supported here yet: it needs guest details) |
+| `event_type` | `GUEST_LECTURE` (Faculty, HOD, Admin only), `WORKSHOP`, `SEMINAR`, `TECH_FEST`, `CULTURAL`, `CLUB_MEET`, `ORIENTATION`, `COMPETITION`, `SPORTS`, `OTHER` |
 | `department_id` | required unless `PERSONAL` |
 | `club_id` | required for `CLUB`, must be null otherwise; the user must be a member |
 | `expected_footfall` | > 0 and <= the venue's capacity |
 | `venue_id`, `start_time`, `end_time` | end after start, start in the future |
 | `resources` | optional, each `resource_id` once, `quantity` > 0 |
+| `guest_name`, `guest_affiliation`, `talk_topic` | **required** for `GUEST_LECTURE` (2-150 / 2-200 / 2-250 characters), not allowed for other types |
+
+#### Guest lectures (Faculty, HOD, Admin)
+
+A guest lecture must use `category: "ACADEMIC"` (so the `GUEST_LECTURE` workflow template is chosen) and include the three guest fields:
+
+```json
+{
+  "title": "Guest Lecture: Databases at Scale",
+  "category": "ACADEMIC",
+  "event_type": "GUEST_LECTURE",
+  "department_id": 1,
+  "expected_footfall": 80,
+  "venue_id": 3,
+  "start_time": "2026-12-15T10:00:00+05:30",
+  "end_time": "2026-12-15T12:00:00+05:30",
+  "resources": [ { "resource_id": 1, "quantity": 1 } ],
+  "guest_name": "Dr. Meera Iyer",
+  "guest_affiliation": "Institute of Data Systems",
+  "talk_topic": "Scaling relational databases"
+}
+```
+
+The guest details are saved in `guest_lecture_details` in the same transaction as the event. The workflow uses the `GUEST_LECTURE` template. For a faculty/HOD/admin requester, stage 1 (Faculty In-charge Review) is `SKIPPED`, so it goes to the department's HOD, then the admin office:
+
+```json
+"workflow": { "template_code": "GUEST_LECTURE", "current_stage_no": 2, "stages": [
+  { "stage_no": 1, "name": "Faculty In-charge Review", "assigned_to_user_id": null, "status": "SKIPPED" },
+  { "stage_no": 2, "name": "HOD Approval", "assigned_to_user_id": 7, "status": "PENDING" },
+  { "stage_no": 3, "name": "Admin: Gate Pass and Final Approval", "assigned_to_user_id": 9, "status": "NOT_STARTED" } ] }
+```
+
+A student or club coordinator gets `403 { "message": "Only faculty, HOD and admin users can request a guest lecture" }`. A missing guest field or a non-`ACADEMIC` category gives `400` with `issues.fieldErrors`. `GET /api/events` returns `guest_name`, `guest_affiliation` and `talk_topic` on each row (null for other events).
 
 What happens, in order:
 
-1. **PostgreSQL**: `CALL submit_booking_request(...)` inserts the event (`PENDING_APPROVAL`), booking and resources, and runs the priority logic.
+1. **PostgreSQL**: `CALL submit_booking_request(...)` inserts the event (`PENDING_APPROVAL`), booking and resources, and runs the priority logic. For a guest lecture, the guest details are inserted in the same transaction.
 2. **Venue lost?** The event is set to `DRAFT`, and the response lists alternate venues.
 3. **Otherwise MongoDB** creates the workflow. If that fails, the event goes back to `DRAFT` and its booking back to `PENDING`.
 

@@ -16,13 +16,20 @@ type ApiMessage = { message?: string; status?: string; event_id?: number; event_
 
 const categories = ["ACADEMIC", "DEPARTMENT", "CLUB", "PERSONAL"] as const;
 const eventTypes = ["WORKSHOP", "SEMINAR", "TECH_FEST", "CULTURAL", "CLUB_MEET", "ORIENTATION", "COMPETITION", "SPORTS", "OTHER"] as const;
+type EventType = (typeof eventTypes)[number] | "GUEST_LECTURE";
 
-export default function EventRequestForm() {
+// canRequestGuestLecture comes from the server (faculty, HOD, admin). For
+// everyone else the GUEST_LECTURE option is never rendered; the API and the
+// database refuse it too.
+export default function EventRequestForm({ canRequestGuestLecture = false }: { canRequestGuestLecture?: boolean }) {
   const [options, setOptions] = useState<EventOptions | null>(null);
   const [optionsError, setOptionsError] = useState("");
   const [category, setCategory] = useState<(typeof categories)[number]>("ACADEMIC");
   const [title, setTitle] = useState("");
-  const [eventType, setEventType] = useState<(typeof eventTypes)[number]>("SEMINAR");
+  const [eventType, setEventType] = useState<EventType>("SEMINAR");
+  const [guestName, setGuestName] = useState("");
+  const [guestAffiliation, setGuestAffiliation] = useState("");
+  const [talkTopic, setTalkTopic] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [clubId, setClubId] = useState("");
   const [footfall, setFootfall] = useState("");
@@ -51,6 +58,8 @@ export default function EventRequestForm() {
     [options, venueId]
   );
   const needsDepartment = category !== "PERSONAL";
+  const isGuestLecture = eventType === "GUEST_LECTURE";
+  const typeOptions: EventType[] = canRequestGuestLecture ? ["GUEST_LECTURE", ...eventTypes] : [...eventTypes];
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -82,7 +91,12 @@ export default function EventRequestForm() {
       venue_id: Number(venueId),
       start_time: new Date(startTime).toISOString(),
       end_time: new Date(endTime).toISOString(),
-      resources
+      resources,
+      ...(isGuestLecture && {
+        guest_name: guestName.trim(),
+        guest_affiliation: guestAffiliation.trim(),
+        talk_topic: talkTopic.trim()
+      })
     };
     try {
       const response = await fetch("/api/events/submit", {
@@ -137,17 +151,36 @@ export default function EventRequestForm() {
           </div>
           <div className="field">
             <label htmlFor="category">Request category</label>
-            <select className="control" id="category" value={category} onChange={e => { setCategory(e.target.value as typeof category); setClubId(""); }}>
+            <select className="control" id="category" value={category} disabled={isGuestLecture} onChange={e => { setCategory(e.target.value as typeof category); setClubId(""); }}>
               {categories.map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}
             </select>
+            {isGuestLecture && <span className="field-help">Guest lectures are academic requests.</span>}
           </div>
           <div className="field">
             <label htmlFor="event-type">Event type</label>
-            <select className="control" id="event-type" value={eventType} onChange={e => setEventType(e.target.value as typeof eventType)}>
-              {eventTypes.map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}
+            <select className="control" id="event-type" value={eventType} onChange={e => {
+              const value = e.target.value as EventType;
+              setEventType(value);
+              if (value === "GUEST_LECTURE") { setCategory("ACADEMIC"); setClubId(""); }
+            }}>
+              {typeOptions.map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}
             </select>
-            <span className="field-help">Guest lectures are not available in this request form yet.</span>
+            {isGuestLecture && <span className="field-help">Approved by your HOD, then the admin office (gate pass).</span>}
           </div>
+          {isGuestLecture && <>
+            <div className="field">
+              <label htmlFor="guest-name">Guest speaker</label>
+              <input className="control" id="guest-name" required minLength={2} maxLength={150} value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="e.g. Dr. A. Rao" />
+            </div>
+            <div className="field">
+              <label htmlFor="guest-affiliation">Guest affiliation</label>
+              <input className="control" id="guest-affiliation" required minLength={2} maxLength={200} value={guestAffiliation} onChange={e => setGuestAffiliation(e.target.value)} placeholder="Organisation or university" />
+            </div>
+            <div className="field full">
+              <label htmlFor="talk-topic">Talk topic</label>
+              <input className="control" id="talk-topic" required minLength={2} maxLength={250} value={talkTopic} onChange={e => setTalkTopic(e.target.value)} placeholder="Title of the talk" />
+            </div>
+          </>}
           {needsDepartment && (
             <div className="field">
               <label htmlFor="department">Department</label>

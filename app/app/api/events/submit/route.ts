@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse } from "../../../../lib/apiError";
 import { requireUser } from "../../../../lib/auth";
 import { withUserTransaction } from "../../../../lib/db";
+import type { AppRole } from "../../../../lib/session";
 import {
   approversFromContext,
   createWorkflowInstance,
@@ -31,7 +32,12 @@ const submitSchema = z
     resources: z
       .array(z.object({ resource_id: id, quantity: id }))
       .max(20)
-      .default([])
+      .default([]),
+    // Guest lectures only (stored in guest_lecture_details; required by
+    // the GUEST_LECTURE workflow template's required_fields).
+    guest_name: z.string().trim().min(2).max(150).optional(),
+    guest_affiliation: z.string().trim().min(2).max(200).optional(),
+    talk_topic: z.string().trim().min(2).max(250).optional()
   })
   .refine(body => Date.parse(body.end_time) > Date.parse(body.start_time), {
     message: "end_time must be after start_time",
@@ -41,12 +47,31 @@ const submitSchema = z
     message: "Each resource may appear only once",
     path: ["resources"]
   })
-  // The guest-lecture template needs guest details (guest_lecture_details),
-  // which this endpoint does not collect yet.
-  .refine(body => body.event_type !== "GUEST_LECTURE", {
-    message: "Guest lectures cannot be submitted through this endpoint yet",
-    path: ["event_type"]
+  .superRefine((body, ctx) => {
+    const guestFields = ["guest_name", "guest_affiliation", "talk_topic"] as const;
+    if (body.event_type === "GUEST_LECTURE") {
+      // The GUEST_LECTURE template applies to ACADEMIC guest lectures; any
+      // other category would fall back to a different template.
+      if (body.category !== "ACADEMIC") {
+        ctx.addIssue({ code: "custom", path: ["category"], message: "A guest lecture must be in the ACADEMIC category" });
+      }
+      for (const field of guestFields) {
+        if (!body[field]) {
+          ctx.addIssue({ code: "custom", path: [field], message: `${field} is required for a guest lecture` });
+        }
+      }
+    } else {
+      for (const field of guestFields) {
+        if (body[field] !== undefined) {
+          ctx.addIssue({ code: "custom", path: [field], message: `${field} is only allowed for a guest lecture` });
+        }
+      }
+    }
   });
+
+// Who may request a guest lecture (the database enforces the same rule:
+// only cerms_faculty / cerms_admin may insert guest_lecture_details).
+const GUEST_LECTURE_ROLES: readonly AppRole[] = ["FACULTY", "HOD", "ADMIN"];
 
 type CallResult = { p_event_id: number; p_booking_id: number; p_booking_status: string };
 type AlternateVenue = { venue_id: number; venue_name: string; capacity: number; spare_seats: number };
@@ -71,6 +96,13 @@ export async function POST(request: Request) {
     );
   }
   const input = parsed.data;
+  const isGuestLecture = input.event_type === "GUEST_LECTURE";
+  if (isGuestLecture && !GUEST_LECTURE_ROLES.includes(user.role)) {
+    return NextResponse.json(
+      { message: "Only faculty, HOD and admin users can request a guest lecture" },
+      { status: 403 }
+    );
+  }
 
   // -------------------------------------------------------------------
   // Step 1: PostgreSQL, in ONE transaction as the logged-in user.
@@ -93,6 +125,17 @@ export async function POST(request: Request) {
           input.resources.map(r => r.quantity)
         ]
       );
+
+      // Guest details belong to the event: same transaction, so the event
+      // never exists without them. Row-level security (guest_lecture.sql)
+      // only allows this for the caller's own guest-lecture event.
+      if (isGuestLecture) {
+        await client.query(
+          `INSERT INTO guest_lecture_details (event_id, guest_name, guest_affiliation, talk_topic)
+           VALUES ($1, $2, $3, $4)`,
+          [call.p_event_id, input.guest_name, input.guest_affiliation, input.talk_topic]
+        );
+      }
 
       if (call.p_booking_status === "REJECTED") {
         // The venue went to a higher-priority booking. No approval is
@@ -147,7 +190,15 @@ export async function POST(request: Request) {
   // -------------------------------------------------------------------
   try {
     const instance = await createWorkflowInstance(
-      eventFromContext(pg.context, user.userId),
+      {
+        ...eventFromContext(pg.context, user.userId),
+        // Checked against the template's required_fields (GUEST_LECTURE).
+        ...(isGuestLecture && {
+          guest_name: input.guest_name,
+          guest_affiliation: input.guest_affiliation,
+          talk_topic: input.talk_topic
+        })
+      },
       approversFromContext(pg.context)
     );
     return NextResponse.json(
