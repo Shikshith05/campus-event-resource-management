@@ -101,7 +101,10 @@ tbody tr:last-child td { border-bottom: 0; }
 .metric-foot { display: block; margin-top: 7px; color: var(--muted); font-size: 11px; }
 .subtle-link { color: var(--green); font-size: 12px; font-weight: 750; text-decoration: none; }
 .subtle-link:hover { text-decoration: underline; }
-.section-stack { display: grid; gap: 18px; }
+/* minmax(0, 1fr): without it the single grid column grows to the widest
+   child's content (e.g. a data table), pushing the page wider than a
+   phone screen instead of letting .table-wrap scroll the table. */
+.section-stack { display: grid; grid-template-columns: minmax(0, 1fr); gap: 18px; }
 .card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
 .divider { height: 1px; margin: 18px 0; background: var(--line); }
 
@@ -157,7 +160,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .user-tools { position: absolute; top: 15px; right: 16px; }
   .main-wrap { width: min(100% - 28px, 1180px); padding-top: 28px; }
   .page-heading { align-items: flex-start; flex-direction: column; }
-  .grid.two, .grid.three, .field-grid, .approval-grid { grid-template-columns: 1fr; }
+  .grid.two, .grid.three, .field-grid, .approval-grid { grid-template-columns: minmax(0, 1fr); }
   .field.full { grid-column: auto; }
   .calendar-cell { min-height: 58px; padding: 6px; }
   .calendar-dot { width: 5px; height: 5px; }
