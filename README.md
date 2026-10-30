@@ -168,16 +168,36 @@ npm install
 npm run dev
 ```
 
-The initial API endpoints are:
+Open <http://localhost:3000/login>. The app connects to PostgreSQL as
+`cerms_app` (created by `rbac.sql`), so run `rbac.sql` before starting it.
 
-- `GET /api/health`
-- `GET /api/events`
-- `GET /api/availability`
-- `GET /api/analytics`
+#### Login credentials (DEVELOPMENT ONLY)
 
-The application foundation intentionally does not claim production
-authentication yet; database-backed RBAC and session handling are the next
-application phase.
+Every sample user in `seed.sql` has the password **`password123`**, stored
+as a real bcrypt hash. These accounts and the database role passwords in
+`rbac.sql` (`cerms_app_dev`, `password123`) are for local development only.
+Never use them on a shared or public server.
+
+| Email | App role | Database role |
+|---|---|---|
+| `student.one@campus.example` | Student | `cerms_student` |
+| `coordinator.one@campus.example` | Club Coordinator | `cerms_student` |
+| `faculty.one@campus.example` | Faculty | `cerms_faculty` |
+| `hod.cse@campus.example` | HOD | `cerms_faculty` |
+| `admin.one@campus.example` | Admin | `cerms_admin` |
+
+#### Endpoints
+
+| Endpoint | Access |
+|---|---|
+| `POST /api/auth/login` | public: email + password, sets the signed `cerms_session` cookie |
+| `POST /api/auth/logout` | clears the cookie |
+| `GET /api/auth/me` | any logged-in user |
+| `GET /api/health` | public |
+| `GET /api/events` | any logged-in user (a student sees only their own requests: row-level security) |
+| `GET /api/availability` | any logged-in user |
+| `GET /api/analytics` | Faculty, HOD, Admin |
+| `/login`, `/dashboard` | login page; dashboard with a role-specific section |
 
 ## About the sample data
 

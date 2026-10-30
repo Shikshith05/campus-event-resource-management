@@ -47,18 +47,21 @@ INSERT INTO department (department_id, code, name) VALUES
 
 -- ---------------------------------------------------------------------
 -- app_user
--- PLACEHOLDER: replace after campus survey (fake people, fake hashes)
+-- PLACEHOLDER: replace after campus survey (fake people)
+-- DEVELOPMENT ONLY: every sample user's password is "password123".
+-- password_hash holds a real bcrypt hash of it (cost 10, own salt per
+-- user), generated with bcryptjs. Never use these accounts in production.
 -- ---------------------------------------------------------------------
 INSERT INTO app_user (user_id, university_id, full_name, email, password_hash, role_id, department_id) VALUES
-    (1, 'STU001', 'Student One',     'student.one@campus.example',     'PLACEHOLDER_HASH', 1, 1),
-    (2, 'STU002', 'Student Two',     'student.two@campus.example',     'PLACEHOLDER_HASH', 1, 2),
-    (3, 'STU003', 'Coordinator One', 'coordinator.one@campus.example', 'PLACEHOLDER_HASH', 2, 1),
-    (4, 'STU004', 'Coordinator Two', 'coordinator.two@campus.example', 'PLACEHOLDER_HASH', 2, 2),
-    (5, 'FAC001', 'Faculty One',     'faculty.one@campus.example',     'PLACEHOLDER_HASH', 3, 1),
-    (6, 'FAC002', 'Faculty Two',     'faculty.two@campus.example',     'PLACEHOLDER_HASH', 3, 2),
-    (7, 'FAC003', 'HOD One',         'hod.cse@campus.example',         'PLACEHOLDER_HASH', 4, 1),
-    (8, 'FAC004', 'HOD Two',         'hod.ece@campus.example',         'PLACEHOLDER_HASH', 4, 2),
-    (9, 'ADM001', 'Admin One',       'admin.one@campus.example',       'PLACEHOLDER_HASH', 5, NULL);
+    (1, 'STU001', 'Student One',     'student.one@campus.example',     '$2b$10$w6rlSUoY4JXdul9R9E3N1eediE0ocA6dAzRF2eTc.fEtV/smkaNTi', 1, 1),
+    (2, 'STU002', 'Student Two',     'student.two@campus.example',     '$2b$10$XFpW8zudeM8hJy5ZOU9mJu.vPCCncxuOcDvucVVtPAJyBx6ru1M6a', 1, 2),
+    (3, 'STU003', 'Coordinator One', 'coordinator.one@campus.example', '$2b$10$7EIbj6ewGxBnPNsbeEDkKu5dSMlTANKxk1pnwKjRRQJUmU2EwMDOa', 2, 1),
+    (4, 'STU004', 'Coordinator Two', 'coordinator.two@campus.example', '$2b$10$o/6s8tHLbLe8Rz4ekMWUqO27L6NPg1QtJDpOqTiOwgwN4p7yFwJ8S', 2, 2),
+    (5, 'FAC001', 'Faculty One',     'faculty.one@campus.example',     '$2b$10$Fq5fAUQE4PhopJqjrgv5SOURj96qPJk4tFBTCvMWReShgFhMonbf.', 3, 1),
+    (6, 'FAC002', 'Faculty Two',     'faculty.two@campus.example',     '$2b$10$cN2RHVHN5H6QBabuK5AAcuRMa5UjM57R3WyvMRX8zEb0Y6YD35DmK', 3, 2),
+    (7, 'FAC003', 'HOD One',         'hod.cse@campus.example',         '$2b$10$PkScKvzco22uzGKhfsHJNuFzuJL3ihtI3i5H7dZLmmPg0euqNfy5y', 4, 1),
+    (8, 'FAC004', 'HOD Two',         'hod.ece@campus.example',         '$2b$10$iX.UeTPhyK2Nl24JxP7Pa.8qROBuHHH/4zNpqkgq/NJxvY7dQfpHS', 4, 2),
+    (9, 'ADM001', 'Admin One',       'admin.one@campus.example',       '$2b$10$.kNCuM92V2yNO268TH2tOOdq0Z0VI.fm6pa9DfGLZTZfHrT1UvPLK', 5, NULL);
 
 
 -- ---------------------------------------------------------------------

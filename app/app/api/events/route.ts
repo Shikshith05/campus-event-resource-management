@@ -1,9 +1,15 @@
 import { NextResponse } from "next/server";
-import { query } from "../../../lib/db";
+import { requireUser } from "../../../lib/auth";
+import { queryAsUser } from "../../../lib/db";
 
+// Runs as the logged-in user: row-level security makes a student see only
+// their own requests here; faculty and admin see all of them.
 export async function GET() {
+  const { user, response } = await requireUser();
+  if (response) return response;
+
   try {
-    const events = await query(
+    const events = await queryAsUser(user,
       `SELECT *
        FROM event_request_summary
        ORDER BY created_at DESC NULLS LAST, event_id DESC`

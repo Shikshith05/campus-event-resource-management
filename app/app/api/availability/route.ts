@@ -1,9 +1,14 @@
 import { NextResponse } from "next/server";
-import { query } from "../../../lib/db";
+import { requireUser } from "../../../lib/auth";
+import { queryAsUser } from "../../../lib/db";
 
+// Any logged-in user may see the venue calendar.
 export async function GET() {
+  const { user, response } = await requireUser();
+  if (response) return response;
+
   try {
-    const schedule = await query(
+    const schedule = await queryAsUser(user,
       `SELECT *
        FROM venue_booking_schedule
        ORDER BY start_time, venue_id`

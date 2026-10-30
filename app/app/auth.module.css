@@ -1,0 +1,141 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: #f4f6fa;
+  color: #1c2330;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid #dde2ea;
+  border-radius: 12px;
+  padding: 32px 28px;
+  box-shadow: 0 4px 16px rgba(20, 30, 50, 0.06);
+}
+
+.wide {
+  max-width: 720px;
+}
+
+.title {
+  margin: 0 0 4px;
+  font-size: 1.5rem;
+}
+
+.subtitle {
+  margin: 0 0 24px;
+  color: #5b6577;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.input {
+  font: inherit;
+  font-weight: 400;
+  padding: 10px 12px;
+  border: 1px solid #c4cbd6;
+  border-radius: 8px;
+}
+
+.input:focus {
+  outline: 2px solid #2f6fde;
+  outline-offset: 1px;
+}
+
+.button {
+  font: inherit;
+  font-weight: 600;
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  background: #2f6fde;
+  color: #ffffff;
+  cursor: pointer;
+}
+
+.button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.secondaryButton {
+  composes: button;
+  background: #e8ecf3;
+  color: #1c2330;
+}
+
+.error {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #fdecec;
+  color: #a12626;
+}
+
+.hint {
+  margin: 20px 0 0;
+  font-size: 0.85rem;
+  color: #5b6577;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.badge {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #e5eefc;
+  color: #1f4fa3;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.section {
+  border-top: 1px solid #e3e7ee;
+  padding-top: 20px;
+}
+
+.section h2 {
+  margin: 0 0 8px;
+  font-size: 1.1rem;
+}
+
+.muted {
+  color: #5b6577;
+}
+
+@media (prefers-color-scheme: dark) {
+  .page { background: #12161d; color: #e4e8ef; }
+  .card { background: #1b212b; border-color: #2c3542; box-shadow: none; }
+  .subtitle, .hint, .muted { color: #9aa5b5; }
+  .input { background: #12161d; color: #e4e8ef; border-color: #3a4454; }
+  .secondaryButton { background: #2c3542; color: #e4e8ef; }
+  .error { background: #3a1c1c; color: #f2b3b3; }
+  .badge { background: #1f3354; color: #a9c6f5; }
+  .section { border-color: #2c3542; }
+}
