@@ -42,6 +42,7 @@ Students and club coordinators submit event requests: date and time, expected fo
 │   │   ├── analytics.sql      event and resource analytics views
 │   │   ├── procedures.sql     submit_booking_request procedure, alternate-venue function, audit trigger
 │   │   ├── seed.sql           placeholder sample data
+│   │   ├── rbac.sql           database roles, least-privilege GRANTs, row-level security + tests
 │   │   ├── dml.sql            INSERT/UPDATE/DELETE demo (rolls itself back)
 │   │   └── queries.sql        joins, subqueries, CTEs, recursive CTEs, aggregates, window function
 │   └── mongo/
@@ -113,6 +114,9 @@ psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/procedures.sql
 
 # 7. load the placeholder data (wipes existing CERMS data first)
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/seed.sql
+
+# 8. database roles, GRANTs and row-level security (must run last)
+psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/rbac.sql
 
 # optional demos (run after the seed; dml.sql rolls itself back)
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/dml.sql

@@ -15,6 +15,7 @@ services:
       - ./db/sql/analytics.sql:/docker-entrypoint-initdb.d/04-analytics.sql:ro
       - ./db/sql/procedures.sql:/docker-entrypoint-initdb.d/05-procedures.sql:ro
       - ./db/sql/seed.sql:/docker-entrypoint-initdb.d/06-seed.sql:ro
+      - ./db/sql/rbac.sql:/docker-entrypoint-initdb.d/07-rbac.sql:ro
 
   mongodb:
     image: mongo:8
