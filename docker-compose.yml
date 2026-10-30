@@ -18,10 +18,15 @@ services:
 
   mongodb:
     image: mongo:8
+    # The scripts resolve db/mongo/... relative to the working directory, so
+    # "docker compose exec mongodb mongosh cerms db/mongo/load.js" finds
+    # /db/mongo/load.js.
+    working_dir: /
     ports:
       - "27017:27017"
     volumes:
       - cerms-mongo-data:/data/db
+      - ./db/mongo:/db/mongo:ro
 
 volumes:
   cerms-postgres-data:

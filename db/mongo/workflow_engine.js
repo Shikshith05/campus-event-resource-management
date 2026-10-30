@@ -305,6 +305,42 @@ function escalateOverdueStages(asOf) {
   return overdue.length;
 }
 
+// Delete the workflow of an event that was cancelled in PostgreSQL.
+// Removes the instance and its still-unread notifications. The audit
+// trail is kept on purpose, and a WORKFLOW_DELETED entry is added to it.
+function deleteWorkflowForEvent(eventId, actorId, reason) {
+  const instance = workflowCollections.instances.findOne({ event_id: eventId });
+  if (!instance) {
+    return { deletedInstances: 0, deletedNotifications: 0 };
+  }
+
+  const instanceResult = workflowCollections.instances.deleteOne({ _id: instance._id });
+  const notificationResult = workflowCollections.notifications.deleteMany({
+    event_id: eventId,
+    status: 'UNREAD'
+  });
+  writeAudit(eventId, instance._id, null, 'WORKFLOW_DELETED', actorId,
+    reason || 'Event cancelled', instance.status, null, null);
+
+  return {
+    deletedInstances: instanceResult.deletedCount,
+    deletedNotifications: notificationResult.deletedCount
+  };
+}
+
+// Delete READ notifications older than the given number of days
+// (default 30). Unread notifications are never purged.
+function purgeOldNotifications(olderThanDays, asOf) {
+  const days = olderThanDays == null ? 30 : olderThanDays;
+  const now = asOf || new Date();
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const result = workflowCollections.notifications.deleteMany({
+    status: 'READ',
+    created_at: { $lt: cutoff }
+  });
+  return result.deletedCount;
+}
+
 workflowCollections.instances.createIndex({ event_id: 1 }, { unique: true });
 workflowCollections.audit.createIndex({ event_id: 1, created_at: -1 });
 workflowCollections.notifications.createIndex({

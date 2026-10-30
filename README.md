@@ -48,7 +48,8 @@ Students and club coordinators submit event requests: date and time, expected fo
 │       ├── workflow_templates.json   3 sample approval chains
 │       ├── workflow_instances.json   1 sample running approval
 │       ├── load.js                   mongosh script: loads sample data and creates indexes
-│       ├── workflow_engine.js        template selection and approval operations
+│       ├── workflow_engine.js        template selection, approval and delete operations
+│       ├── workflow_rud.js           labelled Read / Update / Delete demo + aggregation
 │       └── analytics.js              workflow aggregation reports
 └── app/                       Next.js app and API foundation
 ```
@@ -81,7 +82,11 @@ Load the MongoDB sample workflow data from the repository root:
 ```bash
 docker compose exec mongodb mongosh cerms db/mongo/load.js
 docker compose exec mongodb mongosh cerms db/mongo/workflow_engine.js
+docker compose exec mongodb mongosh cerms db/mongo/workflow_rud.js
 ```
+
+`docker-compose.yml` mounts `./db/mongo` into the container at `/db/mongo`,
+so these paths work inside the `mongodb` service.
 
 The application is then available at <http://localhost:3000>.
 
@@ -140,7 +145,15 @@ mongosh "mongodb://localhost:27017/cerms" db/mongo/analytics.js
 ```
 
 The workflow engine exposes `createWorkflowInstance`, `approveWorkflowStage`,
-`rejectWorkflowStage`, and `escalateOverdueStages` to the application layer.
+`rejectWorkflowStage`, `escalateOverdueStages`, `deleteWorkflowForEvent` and
+`purgeOldNotifications` to the application layer.
+
+Read / Update / Delete demonstration (run right after `load.js`, which resets
+the collections):
+
+```bash
+mongosh "mongodb://localhost:27017/cerms" db/mongo/workflow_rud.js
+```
 
 ### Next.js application
 
