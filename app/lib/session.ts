@@ -27,6 +27,9 @@ export type AppRole = (typeof APP_ROLES)[number];
 export const REQUESTER_ROLES: readonly AppRole[] = ["STUDENT", "CLUB_COORDINATOR"];
 export const APPROVER_ROLES: readonly AppRole[] = ["FACULTY", "HOD"];
 export const STAFF_ROLES: readonly AppRole[] = ["FACULTY", "HOD", "ADMIN"];
+// Everyone who can be assigned an approval stage (club coordinators
+// approve stage 1 of club events).
+export const APPROVAL_ROLES: readonly AppRole[] = ["CLUB_COORDINATOR", "FACULTY", "HOD", "ADMIN"];
 export const ADMIN_ROLES: readonly AppRole[] = ["ADMIN"];
 
 export type SessionUser = {
@@ -54,8 +57,8 @@ const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/health"];
 const ROLE_RULES: { prefix: string; roles: readonly AppRole[] }[] = [
   { prefix: "/api/analytics", roles: STAFF_ROLES },
   { prefix: "/analytics", roles: STAFF_ROLES },
-  { prefix: "/api/approvals", roles: STAFF_ROLES },
-  { prefix: "/approvals", roles: STAFF_ROLES },
+  { prefix: "/api/approvals", roles: APPROVAL_ROLES },
+  { prefix: "/approvals", roles: APPROVAL_ROLES },
   { prefix: "/api/admin", roles: ADMIN_ROLES },
   { prefix: "/admin", roles: ADMIN_ROLES }
 ];
