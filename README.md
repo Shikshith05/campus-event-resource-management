@@ -44,6 +44,7 @@ Students and club coordinators submit event requests: date and time, expected fo
 │   │   ├── procedures.sql     submit_booking_request procedure, alternate-venue function, audit trigger
 │   │   ├── seed.sql           placeholder sample data
 │   │   ├── rbac.sql           database roles, least-privilege GRANTs, row-level security + tests
+│   │   ├── workflow.sql       approver access: coordinator policy, workflow_context, approval_details, record_workflow_decision
 │   │   ├── dml.sql            INSERT/UPDATE/DELETE demo (rolls itself back)
 │   │   └── queries.sql        joins, subqueries, CTEs, recursive CTEs, aggregates, window function
 │   └── mongo/
@@ -58,6 +59,7 @@ Students and club coordinators submit event requests: date and time, expected fo
     ├── lib/session.ts         signed session cookie, roles, route rules
     ├── lib/auth.ts            read the session in routes and pages
     ├── lib/db.ts              PostgreSQL/MongoDB access; withUserTransaction (SET LOCAL ROLE)
+    ├── lib/workflow.ts        approval-workflow engine (TypeScript port of db/mongo/workflow_engine.js)
     └── app/                   pages (/login, /dashboard, /) and API routes (/api/...)
 ```
 
@@ -121,8 +123,12 @@ psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/procedures.sql
 # 7. load the placeholder data (wipes existing CERMS data first)
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/seed.sql
 
-# 8. database roles, GRANTs and row-level security (must run last)
+# 8. database roles, GRANTs and row-level security
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/rbac.sql
+
+# 9. approval-workflow access: coordinator policy + approver functions
+#    (must run after rbac.sql, and again whenever rbac.sql is re-run)
+psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/workflow.sql
 
 # optional demos (run after the seed; dml.sql rolls itself back)
 psql -U postgres -d cerms -v ON_ERROR_STOP=1 -f db/sql/dml.sql
