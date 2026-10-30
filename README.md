@@ -246,6 +246,7 @@ Then reload MongoDB with the command from the quick start. **The `-v` option del
 | MongoDB workflow engine demonstration | `db/mongo/workflow_engine.js` |
 | MongoDB read/update/delete demonstration | `db/mongo/workflow_rud.js` |
 | Database diagram and design notes | `docs/er-diagram.md`, `docs/schema.dbml`, `docs/schema-explanation.md` |
+| Demo script, rubric map and viva questions | [docs/demo-and-viva.md](docs/demo-and-viva.md) |
 | Screenshots of every page at 1280 px and 390 px | [docs/screenshots/](docs/screenshots/README.md) |
 | ER diagram images (regenerate with `node scripts/render-er-diagram.mjs`) | [core tables](docs/er-diagram-core.png), [booking tables](docs/er-diagram-booking.png), [all 14 tables](docs/er-diagram.png) (+ `.svg` of each) |
 
