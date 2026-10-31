@@ -17,7 +17,7 @@ Table department {
 
 Table role {
   role_id int [pk, increment]
-  role_name varchar(30) [not null, unique, note: 'STUDENT, CLUB_COORDINATOR, FACULTY, HOD, ADMIN']
+  role_name varchar(30) [not null, unique, note: 'STUDENT, CLUB_COORDINATOR, FACULTY, HOD, ADMIN, WORKFLOW_APPROVER']
   hierarchy_level smallint [not null, note: 'CHECK > 0; higher = more authority']
   description varchar(200)
 }
@@ -54,13 +54,30 @@ Table club_member {
   }
 }
 
+Table workflow_approver_assignment {
+  assignment_id int [pk, increment]
+  user_id int [not null]
+  approver_role varchar(40) [not null, note: 'CLUB_COORDINATOR, HOD, DEAN_OF_STUDENT_AFFAIRS, VICE_CHANCELLOR']
+  department_id int [note: 'optional department scope']
+  club_id int [note: 'optional club scope']
+  created_at timestamptz [not null, default: `now()`]
+
+  indexes {
+    (approver_role, department_id) [note: 'partial unique index by department scope']
+    (approver_role, club_id) [note: 'partial unique index by club scope']
+  }
+}
+
 Table venue {
   venue_id int [pk, increment]
   name varchar(100) [not null, unique]
   venue_type varchar(20) [not null, note: 'CHECK IN (AUDITORIUM, SEMINAR_HALL, CLASSROOM, LAB, OPEN_AIR, OTHER)']
   building varchar(100)
-  capacity int [not null, note: 'CHECK > 0']
-  department_id int [note: 'NULL = managed centrally']
+  capacity int [note: 'NULL until exact safe booking limit is confirmed']
+  min_capacity int [note: 'estimated range minimum']
+  max_capacity int [note: 'estimated range maximum']
+  venue_type_confirmed boolean [not null, default: true]
+  department_id int [note: 'NULL = manager unspecified or central']
   is_active boolean [not null, default: true]
 }
 
@@ -77,9 +94,9 @@ Table event {
   title varchar(150) [not null]
   description text
   category varchar(20) [not null, note: 'CHECK IN (ACADEMIC, DEPARTMENT, CLUB, PERSONAL)']
-  event_type varchar(20) [not null, note: 'CHECK IN (GUEST_LECTURE, WORKSHOP, SEMINAR, TECH_FEST, CULTURAL, CLUB_MEET, ORIENTATION, COMPETITION, SPORTS, OTHER)']
+  event_type varchar(20) [not null, note: 'CHECK IN (GUEST_LECTURE, HACKATHON, WORKSHOP, SEMINAR, TECH_FEST, CULTURAL, CLUB_MEET, ORIENTATION, COMPETITION, SPORTS, OTHER)']
   organizer_id int [not null, note: 'the requester']
-  department_id int [note: 'required unless category = PERSONAL']
+  department_id int [not null, note: 'required for the HOD approval stage']
   club_id int [note: 'required if and only if category = CLUB']
   expected_footfall int [not null, note: 'CHECK > 0']
   status varchar(20) [not null, default: 'DRAFT', note: 'CHECK IN (DRAFT, PENDING_APPROVAL, APPROVED, REJECTED, CANCELLED)']
@@ -173,6 +190,9 @@ Ref: club.department_id > department.department_id [delete: set null]
 Ref: club.faculty_advisor_id > app_user.user_id [delete: restrict]
 Ref: club_member.club_id > club.club_id [delete: cascade]
 Ref: club_member.user_id > app_user.user_id [delete: cascade]
+Ref: workflow_approver_assignment.user_id > app_user.user_id [delete: restrict]
+Ref: workflow_approver_assignment.department_id > department.department_id [delete: cascade]
+Ref: workflow_approver_assignment.club_id > club.club_id [delete: cascade]
 Ref: venue.department_id > department.department_id [delete: set null]
 Ref: event.organizer_id > app_user.user_id [delete: restrict]
 Ref: event.department_id > department.department_id [delete: restrict]

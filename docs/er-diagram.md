@@ -1,7 +1,6 @@
 # CERMS: ER Diagram
 
-This diagram covers the PostgreSQL side of CERMS: 14 tables, matching [db/sql/schema.sql](../db/sql/schema.sql).
-The approval workflow lives in MongoDB and is described at the end of this page.
+This diagram covers the PostgreSQL side of CERMS: 15 tables, matching [db/sql/schema.sql](../db/sql/schema.sql). It includes the scoped workflow approver mapping table; approval instances and audit remain in MongoDB.
 
 For a nicer image, paste [schema.dbml](schema.dbml) into <https://dbdiagram.io>.
 
@@ -11,9 +10,9 @@ Rendered from the Mermaid block below with `node scripts/render-er-diagram.mjs` 
 
 | Image | Contents | Use |
 |---|---|---|
-| [er-diagram-core.png](er-diagram-core.png) · [svg](er-diagram-core.svg) | DEPARTMENT, ROLE, APP_USER, CLUB, CLUB_MEMBER, VENUE, RESOURCE | report, A4 width |
+| [er-diagram-core.png](er-diagram-core.png) · [svg](er-diagram-core.svg) | DEPARTMENT, ROLE, APP_USER, CLUB, CLUB_MEMBER, WORKFLOW_APPROVER_ASSIGNMENT, VENUE, RESOURCE | report, A4 width |
 | [er-diagram-booking.png](er-diagram-booking.png) · [svg](er-diagram-booking.svg) | EVENT, EVENT_VENUE_PREFERENCE, GUEST_LECTURE_DETAILS, BOOKING, BOOKING_RESOURCE, BOOKING_CONFLICT_LOG, BOOKING_STATUS_HISTORY (core tables they reference appear as key-only boxes) | report, A4 width |
-| [er-diagram.png](er-diagram.png) · [svg](er-diagram.svg) | all 14 tables with the comment column | screen / zoom |
+| [er-diagram.png](er-diagram.png) · [svg](er-diagram.svg) | all 15 tables with the comment column | screen / zoom |
 
 The two A4 images leave out the comment column (allowed values, notes) to stay readable when printed. The full diagram and the tables below keep it.
 
@@ -41,7 +40,7 @@ erDiagram
 
     ROLE {
         int role_id PK
-        varchar role_name UK "STUDENT, CLUB_COORDINATOR, FACULTY, HOD, ADMIN"
+        varchar role_name UK "STUDENT, CLUB_COORDINATOR, FACULTY, HOD, ADMIN, WORKFLOW_APPROVER"
         smallint hierarchy_level "higher = more authority"
         varchar description
     }
@@ -74,13 +73,25 @@ erDiagram
         date joined_on
     }
 
+    WORKFLOW_APPROVER_ASSIGNMENT {
+        int assignment_id PK
+        int user_id FK
+        varchar approver_role "CLUB_COORDINATOR, HOD, DEAN_OF_STUDENT_AFFAIRS, VICE_CHANCELLOR"
+        int department_id FK "nullable scope"
+        int club_id FK "nullable scope"
+        timestamptz created_at
+    }
+
     VENUE {
         int venue_id PK
         varchar name UK
         varchar venue_type "AUDITORIUM, SEMINAR_HALL, ..."
         varchar building
-        int capacity "greater than 0"
-        int department_id FK "nullable = central"
+        int capacity "nullable until safe limit confirmed"
+        int min_capacity "estimated range"
+        int max_capacity "estimated range"
+        boolean venue_type_confirmed
+        int department_id FK "nullable = unspecified/central"
         boolean is_active
     }
 
@@ -97,9 +108,9 @@ erDiagram
         varchar title
         text description
         varchar category "ACADEMIC, DEPARTMENT, CLUB, PERSONAL"
-        varchar event_type "GUEST_LECTURE, WORKSHOP, ..."
+        varchar event_type "GUEST_LECTURE, HACKATHON, WORKSHOP, ..."
         int organizer_id FK "the requester"
-        int department_id FK "required unless PERSONAL"
+        int department_id FK "required for HOD routing"
         int club_id FK "required only if CLUB"
         int expected_footfall "greater than 0"
         varchar status "DRAFT ... APPROVED, REJECTED"
@@ -160,6 +171,9 @@ erDiagram
     APP_USER         ||--o{ CLUB                 : "advises"
     CLUB             ||--o{ CLUB_MEMBER          : "has"
     APP_USER         ||--o{ CLUB_MEMBER          : "joins"
+    APP_USER         ||--o{ WORKFLOW_APPROVER_ASSIGNMENT : "is assigned"
+    DEPARTMENT       |o--o{ WORKFLOW_APPROVER_ASSIGNMENT : "scopes"
+    CLUB             |o--o{ WORKFLOW_APPROVER_ASSIGNMENT : "scopes"
     DEPARTMENT       |o--o{ VENUE                : "manages"
     APP_USER         ||--o{ EVENT                : "organizes"
     DEPARTMENT       |o--o{ EVENT                : "runs"
@@ -199,7 +213,8 @@ erDiagram
 Rules that the diagram cannot show (they are CHECK constraints in the DDL):
 
 - A `CLUB` event must have a `club_id`; other categories must not.
-- Every event except `PERSONAL` must have a `department_id`.
+- Every event must have a `department_id` so its HOD stage can be routed.
+- A venue with no confirmed `capacity` cannot be booked; `min_capacity` and `max_capacity` are estimates only.
 - Venue preferences are ranked uniquely per event; the booking stores the assigned venue.
 - Guest lecture events may have a separate details row for visitor and talk information.
 - Two `CONFIRMED` bookings of the same venue cannot overlap in time (exclusion constraint).
@@ -208,8 +223,8 @@ Rules that the diagram cannot show (they are CHECK constraints in the DDL):
 
 | Collection | One document is ... | Link to PostgreSQL |
 |---|---|---|
-| `workflow_templates` | an approval chain (ordered list of stages) for an event category, type or department | stages name roles from the `role` table |
+| `workflow_templates` | an approval chain (ordered list of stages) for an event category or type | stages name designations resolved by `workflow_approver_assignment` |
 | `workflow_instances` | the live approval of one event, with the status of each stage | `event_id` refers to `event.event_id`; user IDs refer to `app_user.user_id` |
 
-These links are logical, not enforced: MongoDB cannot hold a foreign key into PostgreSQL. The application checks them.
+Each event type uses four stages in order: Club Coordinator, HOD, Dean of Student Affairs, Vice Chancellor. These MongoDB-to-PostgreSQL links are logical, not foreign keys. The application checks the assignments and the database validates account role and scope.
 Sample documents: [db/mongo/](../db/mongo/).

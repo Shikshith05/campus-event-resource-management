@@ -14,7 +14,9 @@ CERMS lets campus users submit events, request venues and equipment, and follow 
 - Approval inbox with approve/reject actions and comments.
 - Staff analytics for event outcomes and venue/resource utilization.
 - Admin inventory pages for venues and resources.
-- PostgreSQL-enforced role access and row-level security; MongoDB stores workflow templates, instances, and audit history.
+- PostgreSQL-enforced role access and row-level security; MongoDB stores workflow templates, instances, audit history, and notifications.
+- The same required four-stage approval chain for every event type: Club Coordinator, HOD, Dean of Student Affairs, and Vice Chancellor.
+- PES RR venue capacity ranges kept separate from the confirmed booking limit, so unconfirmed estimates cannot authorize bookings.
 
 ## Technology
 
@@ -52,7 +54,7 @@ Commands below assume you have opened a terminal at the repository root. The Doc
 
 ## Quick start with Docker
 
-Docker Compose starts PostgreSQL and MongoDB. On a new database volume, PostgreSQL automatically applies the SQL files in the correct order and loads the sample data.
+Docker Compose starts PostgreSQL and MongoDB. On a new database volume, PostgreSQL automatically applies the SQL files in the correct order and loads the sample data together with the ten PES RR venues. The venues retain capacity ranges, and none is bookable until its exact safe capacity is confirmed.
 
 ### 1. Start the databases
 
@@ -76,7 +78,7 @@ The MongoDB image includes `mongosh`; the script and JSON data are mounted in th
 docker compose exec -T mongodb mongosh "mongodb://localhost:27017/cerms" /db/mongo/load.js
 ```
 
-This resets the four workflow collections and loads the sample templates and workflow instances. Run it after a fresh database setup, or whenever you intentionally want to reload those samples.
+This upserts the managed workflow templates and creates indexes. It preserves existing workflow instances, audit history, and notifications. The repository does not seed central approver accounts or mappings.
 
 ### 3. Configure the app
 
@@ -162,7 +164,7 @@ The same command works in macOS Terminal, Windows PowerShell, and Git Bash when 
 `app/.env.example` contains the local connection values:
 
 ```dotenv
-DATABASE_URL=postgresql://cerms_app:cerms_app_dev@localhost:5432/cerms
+DATABASE_URL=postgresql://cerms_app:cerms_app_dev@127.0.0.1:5433/cerms
 MONGODB_URI=mongodb://localhost:27017/cerms
 SESSION_SECRET=replace-with-a-long-random-development-secret
 ```
@@ -185,7 +187,7 @@ All seeded accounts use the development-only password **`password123`**.
 | `hod.ece@campus.example` | HOD |
 | `admin.one@campus.example` | Admin |
 
-After a fresh reset, the approver inbox samples include pending items for Coordinator Two, Faculty Two, HOD CSE, and Admin One.
+Sample accounts are development fixtures only. They have no workflow approval assignments. Do not assign them to real production stages; provide actual account mappings through the protected setup process in [docs/real-data-guide.md](docs/real-data-guide.md).
 
 ## Pages and access
 
@@ -196,11 +198,11 @@ After a fresh reset, the approver inbox samples include pending items for Coordi
 | `/events/new` | All signed-in users |
 | `/events` | All signed-in users; visible rows depend on the account's database permissions |
 | `/availability` | All signed-in users |
-| `/approvals` | Club Coordinator, Faculty, HOD, Admin |
+| `/approvals` | Faculty/HOD assigned to a stage and workflow-only central approvers |
 | `/analytics` | Faculty, HOD, Admin |
 | `/admin` | Admin |
 
-Guest Lecture is offered in the request form only to Faculty, HOD and Admin accounts; it asks for the guest speaker, affiliation and talk topic, and is approved by the HOD and then the admin office. The API reference, including request/response examples, is in [docs/api.md](docs/api.md).
+Every proposal requires a department and follows the same four stages: Club Coordinator (faculty advisor for club events), HOD, Dean of Student Affairs, then Vice Chancellor. Guest Lecture is offered only to Faculty, HOD, and Admin accounts and retains its guest name, affiliation, and talk topic fields. Submission is blocked until all four distinct approver assignments exist. The API reference is in [docs/api.md](docs/api.md).
 
 ## Useful development commands
 
@@ -213,7 +215,7 @@ npm run build     # create a production build
 npm run start     # serve the production build
 ```
 
-There is no automated test script in `package.json` yet. The `lint` script currently runs TypeScript checking; it does not run ESLint.
+`npm test` runs the built-in Node test runner for venue data and workflow rules. The `lint` script runs TypeScript checking; it does not run ESLint.
 
 ## Resetting Docker data
 
@@ -239,7 +241,7 @@ Then reload MongoDB with the command from the quick start. **The `-v` option del
 | Roles, grants, row-level security, and policy demonstrations | `db/sql/rbac.sql` |
 | Workflow-aware access and approval functions | `db/sql/workflow.sql` |
 | Guest-lecture details: insert grant and row-level security | `db/sql/guest_lecture.sql` |
-| Real PES University data: CSV templates, loader, password hashes | `data/pes/*.csv`, `db/sql/load_pes_data.sql`, `scripts/hash-password.mjs`; step by step in [docs/real-data-guide.md](docs/real-data-guide.md) |
+| PES RR venues and private real-data loader | `data/pes/venues.csv`, `db/sql/load_pes_venues.sql`, `db/sql/load_pes_data.sql`; private identities belong under ignored `data/pes/private/`; see [docs/real-data-guide.md](docs/real-data-guide.md) |
 | SQL query catalogue | `db/sql/queries.sql` |
 | Reversible DML demonstration | `db/sql/dml.sql` |
 | MongoDB sample loader | `db/mongo/load.js` |
@@ -248,6 +250,6 @@ Then reload MongoDB with the command from the quick start. **The `-v` option del
 | Database diagram and design notes | `docs/er-diagram.md`, `docs/schema.dbml`, `docs/schema-explanation.md` |
 | Demo script, rubric map and viva questions | [docs/demo-and-viva.md](docs/demo-and-viva.md) |
 | Screenshots of every page at 1280 px and 390 px | [docs/screenshots/](docs/screenshots/README.md) |
-| ER diagram images (regenerate with `node scripts/render-er-diagram.mjs`) | [core tables](docs/er-diagram-core.png), [booking tables](docs/er-diagram-booking.png), [all 14 tables](docs/er-diagram.png) (+ `.svg` of each) |
+| ER diagram images (regenerate with `node scripts/render-er-diagram.mjs`) | [core tables](docs/er-diagram-core.png), [booking tables](docs/er-diagram-booking.png), [all 15 tables](docs/er-diagram.png) (+ `.svg` of each) |
 
-Sample people, venue names, capacities, equipment counts, and event data are placeholders for the campus survey. Development passwords and database-role passwords are for local use only.
+Sample people, legacy demo venue names and capacities, equipment counts, and event data are placeholders for the campus survey. The ten PES RR venue names and capacity ranges are supplied data; exact safe capacities still need confirmation. Development passwords and database-role passwords are for local use only.

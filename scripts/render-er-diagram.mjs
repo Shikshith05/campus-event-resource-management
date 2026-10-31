@@ -8,7 +8,7 @@
 //   npx -y @mermaid-js/mermaid-cli@11 --version
 //
 // Output (PNG for documents, SVG for zooming):
-//   docs/er-diagram.png / .svg           all 14 tables (best on screen)
+//   docs/er-diagram.png / .svg           all 15 tables (best on screen)
 //   docs/er-diagram-core.png / .svg      people, clubs, venues, resources
 //   docs/er-diagram-booking.png / .svg   events, bookings and audit tables
 // The two halves are readable at A4 width. The booking half repeats the
@@ -36,7 +36,8 @@ const relations = block.split("\n")
     return { line, left, right };
   });
 
-const CORE = ["DEPARTMENT", "ROLE", "APP_USER", "CLUB", "CLUB_MEMBER", "VENUE", "RESOURCE"];
+const CORE = ["DEPARTMENT", "ROLE", "APP_USER", "CLUB", "CLUB_MEMBER",
+              "WORKFLOW_APPROVER_ASSIGNMENT", "VENUE", "RESOURCE"];
 const BOOKING = ["EVENT", "EVENT_VENUE_PREFERENCE", "GUEST_LECTURE_DETAILS", "BOOKING",
                  "BOOKING_RESOURCE", "BOOKING_CONFLICT_LOG", "BOOKING_STATUS_HISTORY"];
 const missing = [...entities.keys()].filter(name => !CORE.includes(name) && !BOOKING.includes(name));

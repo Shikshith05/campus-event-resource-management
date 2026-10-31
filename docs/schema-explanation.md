@@ -12,12 +12,12 @@ CERMS uses **two databases**, each for what it is good at:
 | | PostgreSQL | MongoDB |
 |---|---|---|
 | Holds | users, roles, clubs, venues, resources, events, bookings, priority decisions and guest lecture details | approval workflow templates, running instances, audit history and notifications |
-| Why | Fixed structure, must never be wrong: foreign keys, CHECK constraints and ACID transactions stop double-booking | Each event type needs a different number of approval steps, with different fields. That is a natural fit for a nested document and an awkward fit for fixed tables |
+| Why | Fixed structure, must never be wrong: foreign keys, CHECK constraints and ACID transactions stop double-booking | One document stores each four-stage approval, its ordered actions, audit history, and notifications |
 | Special feature used | **Exclusion constraint** on a time range: the database itself refuses two confirmed bookings of the same venue at overlapping times. MySQL has no equivalent | Nested arrays of stages; the aggregation pipeline (later) for approval-turnaround analytics |
 
-The 14 PostgreSQL tables fall into four groups:
+The 15 PostgreSQL tables fall into four groups:
 
-- **Master data:** `department`, `role`, `app_user`, `club`, `venue`, `resource`
+- **Master data:** `department`, `role`, `app_user`, `club`, `venue`, `resource`, `workflow_approver_assignment`
 - **Bridge tables (M:N):** `club_member`, `booking_resource`
 - **Transactions:** `event`, `booking`
 - **Audit:** `booking_conflict_log`, `booking_status_history`
@@ -33,7 +33,7 @@ The 14 PostgreSQL tables fall into four groups:
 | 3NF | 2NF, and no non-key column depends on another non-key column (no transitive dependency) |
 | BCNF | Every column that determines other columns is a candidate key |
 
-**Result: all 14 tables are in 3NF, and in fact in BCNF.** In every table, the only things that determine other columns are the primary key or another UNIQUE column.
+**Result: all 15 tables are in 3NF, and in fact in BCNF.** In every table, the only things that determine other columns are the primary key or another UNIQUE column.
 Section 4 lists the data we deliberately did *not* store, because storing it would break 3NF.
 
 ---
@@ -41,14 +41,14 @@ Section 4 lists the data we deliberately did *not* store, because storing it wou
 ## 3. Table by table
 
 ### 3.1 `department`
-- **Purpose:** The academic departments (CSE, ECE, ...). Users, clubs, venues and events can belong to one.
+- **Purpose:** The academic departments (CSE, ECE, ...). Users, clubs, venues, events, and scoped workflow assignments can belong to one.
 - **Key constraints:** PK `department_id`; `code` and `name` are both UNIQUE and NOT NULL.
 - **Relationships:** 1 : N with `app_user`, `club`, `venue` and `event` (all optional on the other side).
 - **Normal form:** BCNF. `department_id`, `code` and `name` are all candidate keys, and nothing else is stored.
 
 ### 3.2 `role`
-- **Purpose:** The five system roles: STUDENT, CLUB_COORDINATOR, FACULTY, HOD and ADMIN. These drive access control.
-- **Key constraints:** PK `role_id`; `role_name` UNIQUE; `hierarchy_level > 0`. `hierarchy_level` is deliberately *not* unique, so a future DEAN role can share a level with ADMIN.
+- **Purpose:** System roles include STUDENT, CLUB_COORDINATOR, FACULTY, HOD, ADMIN, and WORKFLOW_APPROVER. These drive access control.
+- **Key constraints:** PK `role_id`; `role_name` UNIQUE; `hierarchy_level > 0`. `WORKFLOW_APPROVER` is separate from ADMIN so central stage approvals do not grant broad system administration.
 - **Relationships:** 1 : N with `app_user` (every user has exactly one role).
 - **Normal form:** BCNF. Only the candidate keys `role_id` and `role_name` determine the other columns.
 - **Why a table, not a CHECK list?** `hierarchy_level` belongs to the role and feeds the priority score. Keeping it as data means a new role is just an INSERT.
@@ -70,13 +70,20 @@ Section 4 lists the data we deliberately did *not* store, because storing it wou
 - **Purpose:** Resolves the **M : N** between users and clubs: a student can join many clubs, and a club has many students.
 - **Key constraints:** Composite PK `(club_id, user_id)`, so the same person cannot join a club twice. `club_position IN ('MEMBER', 'COORDINATOR')`.
 - **Relationships:** N : 1 to `club` and N : 1 to `app_user`, both ON DELETE CASCADE, because a membership has no meaning without both sides.
-- **System role vs club position:** `app_user.role_id` says what you may do in the app. `club_position` says *which* club you lead. A CLUB_COORDINATOR user is COORDINATOR in one club and may be a plain MEMBER in another.
+- **System role vs club position:** `app_user.role_id` says what you may do in the app. `club_position` says *which* club you lead. Student `CLUB_COORDINATOR` accounts can request and view club proposals, but do not receive stage approval authority.
 - **Normal form:** BCNF. `club_position` and `joined_on` depend on the *whole* key (this person in this club), so there is no partial dependency (2NF) and no transitive one (3NF).
+
+### 3.5.1 `workflow_approver_assignment`
+- **Purpose:** Maps an account to a workflow designation and optional club or department scope. Production assignments are supplied here; templates do not hardcode user IDs.
+- **Key constraints:** PK `assignment_id`; partial unique indexes allow one mapping per designation/scope. A trigger verifies that a club's Club Coordinator is its faculty advisor, that an HOD matches the department, and that central designations use WORKFLOW_APPROVER accounts.
+- **Security:** The requester and all four stage accounts must be distinct. Missing mappings block submission instead of skipping a stage.
+- **Normal form:** BCNF. Scope and designation belong to the assignment row; person data remains in `app_user`.
 
 ### 3.6 `venue`
 - **Purpose:** Bookable spaces: auditoriums, seminar halls, classrooms, labs and open-air spaces.
-- **Key constraints:** PK `venue_id`; `name` UNIQUE; `capacity > 0`; `venue_type` limited by a CHECK list.
-- **Relationships:** N : 1 to `department` as the manager (NULL = central admin); 1 : N to `booking`.
+- **Key constraints:** PK `venue_id`; `name` UNIQUE; nullable `capacity` is the confirmed safe booking limit; `min_capacity` and `max_capacity` preserve estimates; `venue_type_confirmed` records pending type information; `venue_type` is limited by a CHECK list.
+- **Relationships:** Optional N : 1 to `department` as manager (NULL is unspecified/central); 1 : N to `booking`.
+- **Booking rule:** A venue with NULL confirmed `capacity` cannot be booked. The supplied range is displayed but never treated as an exact safe limit.
 - **Soft delete:** venues are retired with `is_active`, because old bookings point to them.
 - **Normal form:** BCNF. `building` is just a text attribute. If buildings later need their own attributes, they become a separate table.
 
@@ -90,10 +97,10 @@ Section 4 lists the data we deliberately did *not* store, because storing it wou
 - **Purpose:** One event request: what it is, who asked, which department or club, and how many people are expected.
 - **Key constraints:**
   - `category IN ('ACADEMIC', 'DEPARTMENT', 'CLUB', 'PERSONAL')` feeds the priority score.
-  - `event_type` (GUEST_LECTURE, WORKSHOP, ...) is used, together with the category and department, to pick the approval workflow template.
+  - `event_type` (including HACKATHON and GUEST_LECTURE) and category select a workflow template. Every active template has the same four required stages.
   - `expected_footfall > 0`.
   - `chk_event_club`: a CLUB event **must** have a `club_id`, and any other category **must not**.
-  - `chk_event_department`: every event except PERSONAL **must** have a `department_id`, because that department's HOD is in the approval chain.
+  - `chk_event_department`: every event **must** have a `department_id`, because that department's HOD is in the approval chain.
   - `status` holds the final approval outcome: DRAFT, PENDING_APPROVAL, APPROVED, REJECTED or CANCELLED.
 - **Relationships:** N : 1 to `app_user` (the organizer, i.e. the requester), to `department` and to `club`; 1 : N to `booking`.
 - **Normal form:** BCNF. Is `department_id` a transitive copy of `club.department_id`? No. A campus-wide club has no department, and a CSE club may hold an event under ECE. So `club_id` does not determine `department_id`; it is an independent fact about the event.
@@ -145,9 +152,9 @@ Section 4 lists the data we deliberately did *not* store, because storing it wou
 | Requester on `booking` | `event.organizer_id` | Would be a transitive dependency |
 | Venue on `booking_conflict_log` | the winning booking's `venue_id` | Would be a transitive dependency |
 | Priority score on `booking` | computed when a clash happens; the snapshot goes to `booking_conflict_log` | Depends on data that keeps changing |
-| HOD of a department | the user with role HOD in that department | No second source of truth |
+| HOD of a department | `workflow_approver_assignment` for that department, validated against the account's HOD role and department | Explicit routing, no inferred staff identity |
 | Free quantity of a resource | `total_quantity` minus overlapping confirmed bookings | Changes with every booking |
-| Alternate venue suggestions | computed on demand: active venues with capacity >= footfall and no confirmed overlap | They go out of date immediately |
+| Alternate venue suggestions | computed on demand: active venues with a confirmed `capacity >= footfall` and no confirmed overlap | They go out of date immediately |
 | Approval stages | MongoDB `workflow_instances` | Variable shape (see section 8) |
 | Workflow audit and notifications | MongoDB `workflow_audit` and `workflow_notifications` | Event-driven history and inbox state |
 
@@ -170,7 +177,7 @@ One chain worth knowing: deleting an event cascades to its bookings, but if one 
 
 A CHECK constraint can only look at **one row**. The cross-row rules below are implemented in [booking_logic.sql](../db/sql/booking_logic.sql):
 
-1. Venue `capacity >= event.expected_footfall` when a booking is confirmed.
+1. Venue `capacity IS NOT NULL AND capacity >= event.expected_footfall` when a booking is confirmed.
 2. Requested resource quantity <= quantity still free in that time slot.
 3. Computing the priority score from category, role, lead time, and past penalties.
 4. Picking a winner and rejecting overlapping pending requests inside a transaction.
@@ -225,18 +232,15 @@ Sample files: [workflow_templates.json](../db/mongo/workflow_templates.json), [w
 ### `workflow_templates`: the approval chain definitions
 - One document per chain, identified by `template_code` + `version` (unique index).
 - `applies_to: { event_category, event_type, department_code }`, where `null` means "any".
-- **Choosing a template:** among active templates that match the event, the most specific wins: department + type, then type, then category.
-  - A guest lecture uses `GUEST_LECTURE` (it matches on type).
-  - Any other club event uses `CLUB_EVENT`.
-  - To give one department its own chain, add a document with its `department_code`. No code or schema change is needed.
-- `stages[]` is an ordered list. Each stage has `approver_role` (a role from PostgreSQL), `approver_rule` (which user with that role, e.g. `ADVISOR_OF_EVENT_CLUB`, `HOD_OF_EVENT_DEPARTMENT`), `sla_hours`, and optionally `skip_if_requester_role` (a coordinator does not review their own request).
-- The samples have **4, 2 and 3 stages**. The guest-lecture template also carries `required_fields` (guest name, affiliation, topic), a field the other templates do not have.
+- **Choosing a template:** among active templates that match the event, the most specific wins. Club events use `CLUB_EVENT`; department events use `DEPARTMENT_EVENT`; guest lectures use `GUEST_LECTURE`; other types, including HACKATHON, use `STANDARD_EVENT`.
+- Every active template has the same four ordered, non-skippable designations: Club Coordinator, HOD, Dean of Student Affairs, Vice Chancellor. `approver_rule` names an assignment lookup, not a personal account.
+- The guest-lecture template retains required guest name, affiliation, and talk topic fields. SLA hours are application defaults, not verified campus policy.
 
 ### `workflow_instances`: one running approval per event
 - `event_id` links to PostgreSQL `event.event_id`. User IDs link to `app_user.user_id`.
 - Copies the stage list from the template **at submission time**, plus `template_version`. Editing a template later does not change approvals already in progress.
-- Stage status: NOT_STARTED, PENDING, APPROVED, REJECTED or SKIPPED. Instance status: IN_PROGRESS, APPROVED, REJECTED or CANCELLED.
-- The sample is the Coding Club Hackathon (event 3): stages 1-2 APPROVED, stage 3 (HOD) PENDING, stage 4 NOT_STARTED.
+- Stage status: NOT_STARTED, PENDING, APPROVED, or REJECTED. Instance status: IN_PROGRESS, APPROVED, REJECTED or CANCELLED.
+- Instances are created only after all four distinct approvers resolve from scoped role assignments. The repository does not seed production identities or assignments.
 
 ### Why MongoDB here, and how the two databases stay consistent
 - In SQL this would need at least four tables (template, template_stage, instance, stage_action) plus nullable columns for template-specific fields. In MongoDB, one document holds one whole approval, which is read and updated together.
@@ -245,14 +249,14 @@ Sample files: [workflow_templates.json](../db/mongo/workflow_templates.json), [w
 
 ---
 
-## 9. Why only these 14 tables
+## 9. Why only these 15 tables
 
 Things we considered and left out, to keep the design simple:
 
 | Not added | Reason |
 |---|---|
 | `event_category` table | The four categories are fixed by the problem statement, so a CHECK list is enough |
-| `permission` / `role_permission` tables | Five roles. Permissions are PostgreSQL GRANTs and row-level security policies on three database roles (section 12) |
+| `permission` / `role_permission` tables | App roles map to PostgreSQL GRANTs, row-level security, and scoped workflow assignments (section 12) |
 | `time_slot` table | Free start and end times plus range overlap are more flexible than fixed slots |
 | SQL workflow tables | Workflows live in MongoDB |
 | `alternate_suggestion` table | Suggestions are computed on demand |
@@ -278,7 +282,7 @@ Things we considered and left out, to keep the design simple:
 - **Why not store the cancellation count on the user?** It can be derived from bookings, and storing it would risk disagreement (an update anomaly).
 - **Why two databases?** Core records need strict integrity and transactions (PostgreSQL). Approval chains have a different shape per event type (MongoDB documents).
 - **What happens if a user leaves?** They are deactivated, not deleted. RESTRICT foreign keys protect their history.
-- **Is the design in 3NF?** Yes, all 14 tables are in 3NF, and in BCNF. Every determinant is a candidate key, and derived data is computed rather than stored (section 4).
+- **Is the design in 3NF?** Yes, all 15 tables are in 3NF, and in BCNF. Every determinant is a candidate key, and derived data is computed rather than stored (section 4).
 
 ---
 
@@ -293,7 +297,7 @@ Files: [procedures.sql](../db/sql/procedures.sql), [rbac.sql](../db/sql/rbac.sql
 - **SECURITY DEFINER:** conflict resolution may reject *other* users' pending bookings and writes `booking_conflict_log`, which a student may not do directly. So the procedure runs with its owner's rights, but first checks that `app.current_user_id` is the organizer (or an ADMIN). `EXECUTE` is revoked from PUBLIC and granted only to the three CERMS roles.
 
 ### 12.2 Function with a CTE: `suggest_alternate_venues(booking_id)`
-- `WITH target AS (...)` finds the booking's slot and footfall; `busy AS (...)` lists the venues already CONFIRMED in that slot; the final SELECT returns active venues with `capacity >= footfall` that are not busy, closest capacity first.
+- `WITH target AS (...)` finds the booking's slot and footfall; `busy AS (...)` lists the venues already CONFIRMED in that slot; the final SELECT returns active venues with a confirmed `capacity >= footfall` that are not busy, closest capacity first.
 - It runs with the **caller's** rights, so under row-level security a student can only ask about their own booking. The busy check reads the `venue_booking_schedule` view, which sees every booking, so the answer is still correct.
 
 ### 12.3 Audit trigger: `trg_log_booking_status`
@@ -306,10 +310,11 @@ Files: [procedures.sql](../db/sql/procedures.sql), [rbac.sql](../db/sql/rbac.sql
 
 | Database role | Type | Used for | Can do |
 |---|---|---|---|
-| `cerms_student` | group (NOLOGIN) | Student, Club Coordinator | read venues, resources, clubs and the calendar views; insert and edit **own** events and bookings; call the procedure |
-| `cerms_faculty` | group, member of `cerms_student` | Faculty, HOD | everything a student can, plus read all events, bookings, history and analytics, and change event/booking **status** |
+| `cerms_student` | group (NOLOGIN) | Student, student Club Coordinator | read venues, resources, clubs and calendar; insert and edit **own** events and bookings; club positions retain request visibility but do not grant approval |
+| `cerms_faculty` | group, member of `cerms_student` | Faculty, HOD | everything a student can, plus read events, bookings, history and analytics; approve through assigned-stage checks |
+| `cerms_workflow_approver` | group (NOLOGIN) | WORKFLOW_APPROVER | read assigned approval details and call workflow decision checks only |
 | `cerms_admin` | group, member of `cerms_faculty` | Admin | everything; the only role that can touch `role`, `booking_conflict_log` and `password_hash` |
-| `cerms_app` | LOGIN, NOINHERIT | the Next.js server | nothing by itself except `find_user_for_login()`; may `SET ROLE` to the three groups |
+| `cerms_app` | LOGIN, NOINHERIT | the Next.js server | nothing by itself except `find_user_for_login()`; may `SET ROLE` to the mapped application groups |
 | `cerms_test_*` | LOGIN | trying the rules in psql | each is a member of one group |
 
 - **Least privilege:** each role gets only what its users need. A *column-level* GRANT on `app_user` lets students and faculty read every column **except** `password_hash`.
@@ -354,7 +359,7 @@ Files: [procedures.sql](../db/sql/procedures.sql), [rbac.sql](../db/sql/rbac.sql
 Files: [app/app/api/events/submit/route.ts](../app/app/api/events/submit/route.ts), [app/app/api/approvals/[eventId]/route.ts](../app/app/api/approvals/%5BeventId%5D/route.ts), [app/lib/workflow.ts](../app/lib/workflow.ts), [db/sql/workflow.sql](../db/sql/workflow.sql). The API itself is documented in [api.md](api.md).
 
 ### 13.1 Who owns what
-- **PostgreSQL** owns the *facts*: the event, its booking and resources, and the final outcome (`event.status`). Constraints, triggers and RLS protect them.
+- **PostgreSQL** owns the *facts*: the event, its booking and resources, scoped approver assignments, and the final outcome (`event.status`). Constraints, triggers and RLS protect them.
 - **MongoDB** owns the *process*: which template was used, which stage is current, who is assigned to it, every decision (`workflow_audit`) and the inbox (`workflow_notifications`).
 - They are linked only by `event_id`. MongoDB cannot hold a foreign key into PostgreSQL, so the application keeps them consistent.
 
@@ -391,7 +396,7 @@ Approvers need PostgreSQL data that rbac.sql hides from them on purpose. Instead
 | Object | Why it is needed |
 |---|---|
 | policies `event_coordinator_select`, `booking_coordinator_select` | a club coordinator must *see* (not edit) other students' requests for their own club |
-| `workflow_context(event_id)` | resolving approvers needs role names (the `role` table is admin-only); returns one user per `approver_rule` |
+| `workflow_context(event_id)` | resolves the four scoped assignments (the `role` table is admin-only); returns internal account IDs to the application, which never includes them in requester responses |
 | `approval_details(event_ids[])` | the inbox needs the priority score, and `calculate_booking_priority()` reads `role` |
 | `record_workflow_decision(event_id, decision)` | a coordinator may *reject* at stage 1 but has no UPDATE right on other people's events |
 
