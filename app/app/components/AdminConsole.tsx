@@ -119,16 +119,16 @@ export default function AdminConsole() {
       <section className="panel panel-pad">
         <div className="card-head">
           <div><h2 className="panel-title">Campus inventory</h2><p className="panel-copy">Update bookable spaces and shared equipment. Retire items to keep past bookings intact.</p></div>
-          <div className="button-row" style={{ marginTop: 0 }}>
-            <button className={`btn small${tab === "venues" ? "" : " secondary"}`} type="button" onClick={() => setTab("venues")}>Venues <span className="pill neutral">{venues.length}</span></button>
-            <button className={`btn small${tab === "resources" ? "" : " secondary"}`} type="button" onClick={() => setTab("resources")}>Resources <span className="pill neutral">{resources.length}</span></button>
+          <div className="inventory-tabs" role="group" aria-label="Inventory category">
+            <button className={`btn small${tab === "venues" ? "" : " secondary"}`} type="button" aria-pressed={tab === "venues"} onClick={() => setTab("venues")}>Venues <span className="pill neutral">{venues.length}</span></button>
+            <button className={`btn small${tab === "resources" ? "" : " secondary"}`} type="button" aria-pressed={tab === "resources"} onClick={() => setTab("resources")}>Resources <span className="pill neutral">{resources.length}</span></button>
           </div>
         </div>
       </section>
 
       {tab === "venues" ? <>
         <section className="panel panel-pad">
-          <h2 className="panel-title">Add a venue</h2><p className="panel-copy">An estimated range is displayed to requesters, but booking stays disabled until a confirmed capacity is entered.</p>
+          <h2 className="panel-title">Add a venue</h2><p className="panel-copy">Estimated capacity is shown as a range. A confirmed capacity is required before requesters can book it.</p>
           <form className="field-grid" onSubmit={createVenue}>
             <div className="field"><label htmlFor="new-venue-name">Name</label><input id="new-venue-name" className="control" required maxLength={100} value={newVenue.name} onChange={e => setNewVenue(current => ({ ...current, name: e.target.value }))} /></div>
             <div className="field"><label htmlFor="new-venue-type">Venue type</label><select id="new-venue-type" className="control" value={newVenue.venue_type} onChange={e => setNewVenue(current => ({ ...current, venue_type: e.target.value }))}>{venueTypes.map(type => <option key={type}>{type}</option>)}</select></div>
@@ -150,10 +150,10 @@ export default function AdminConsole() {
               return <tr key={row.venue_id}>
                 <td><input className="control" aria-label={`${row.name} name`} value={draft.name} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, name: e.target.value } }))} /></td>
                 <td><select className="control" aria-label={`${row.name} type`} value={draft.venue_type} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, venue_type: e.target.value } }))}>{venueTypes.map(type => <option key={type}>{type}</option>)}</select></td>
-                <td><select className="control" aria-label={`${row.name} type confirmation`} value={String(draft.venue_type_confirmed)} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, venue_type_confirmed: e.target.value === "true" } }))}><option value="true">Confirmed</option><option value="false">Pending</option></select></td>
+                <td><select className="control" aria-label={`${row.name} type confirmation`} value={String(draft.venue_type_confirmed)} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, venue_type_confirmed: e.target.value === "true" } }))}><option value="true">Confirmed</option><option value="false">Pending</option></select>{!draft.venue_type_confirmed && <span className="field-help">Type needs confirmation</span>}</td>
                 <td><input className="control" aria-label={`${row.name} building`} value={draft.building ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, building: e.target.value || null } }))} /></td>
                 <td><select className="control" aria-label={`${row.name} department`} value={draft.department_id ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, department_id: Number(e.target.value) || null } }))}><option value="">Central</option>{departments.map(department => <option value={department.department_id} key={department.department_id}>{department.code}</option>)}</select></td>
-                <td><input className="control" aria-label={`${row.name} confirmed capacity`} type="number" min={1} value={draft.capacity ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, capacity: e.target.value === "" ? null : Number(e.target.value) } }))} /></td>
+                <td><input className="control" aria-label={`${row.name} confirmed capacity`} type="number" min={1} value={draft.capacity ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, capacity: e.target.value === "" ? null : Number(e.target.value) } }))} />{draft.capacity === null && <span className="field-help">Not bookable until confirmed</span>}</td>
                 <td><div className="grid two"><input className="control" aria-label={`${row.name} estimated minimum`} type="number" min={1} value={draft.min_capacity ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, min_capacity: e.target.value === "" ? null : Number(e.target.value) } }))} /><input className="control" aria-label={`${row.name} estimated maximum`} type="number" min={1} value={draft.max_capacity ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, max_capacity: e.target.value === "" ? null : Number(e.target.value) } }))} /></div></td>
                 <td><select className="control" aria-label={`${row.name} status`} value={String(draft.is_active)} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, is_active: e.target.value === "true" } }))}><option value="true">Active</option><option value="false">Retired</option></select></td>
                 <td><button className="btn small" type="button" disabled={busy !== ""} onClick={() => void saveVenue(row.venue_id)}>{busy === `venue-${row.venue_id}` ? "Saving…" : "Save"}</button></td>

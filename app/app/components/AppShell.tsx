@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { getSessionUser, ROLE_LABELS } from "../../lib/auth";
 import { ADMIN_ROLES, APPROVAL_ROLES, EVENT_ROLES, STAFF_ROLES } from "../../lib/session";
 import LogoutButton from "../dashboard/LogoutButton";
+import AppNavigation from "./AppNavigation";
 
 const links = [
   { href: "/events/new", label: "New request", key: "new", roles: EVENT_ROLES },
@@ -35,17 +36,7 @@ export default async function AppShell({
           </span>
         </Link>
         <div className="topbar-right">
-          <nav className="nav-links" aria-label="Main navigation">
-            {links.filter(link => !("roles" in link) || link.roles.includes(user.role)).map(link => (
-              <Link
-                key={link.key}
-                className={`nav-link${active === link.key ? " active" : ""}`}
-                href={link.href}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </nav>
+          <AppNavigation links={links.filter(link => link.roles.includes(user.role))} active={active} />
           <div className="user-tools">
             <span className="user-name"><strong>{user.role === "WORKFLOW_APPROVER" ? "Assigned approver" : user.name}</strong>{ROLE_LABELS[user.role]}</span>
             <LogoutButton />

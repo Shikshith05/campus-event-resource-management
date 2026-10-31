@@ -20,15 +20,18 @@ export default async function LoginPage({
   return (
     <main className={styles.page}>
       <div className={styles.card}>
-        <h1 className={styles.title}>CERMS</h1>
-        <p className={styles.subtitle}>Campus Event and Resource Management System</p>
+        <div className={styles.brand}>
+          <span className={styles.brandMark} aria-hidden="true">C</span>
+          <span><span className={styles.brandName}>CERMS</span><span className={styles.brandCaption}>PES University · Ring Road Campus</span></span>
+        </div>
+        <h1 className={styles.title}>Sign in to your workspace</h1>
+        <p className={styles.subtitle}>Manage campus events, venues, and shared resources.</p>
         <LoginForm nextPath={safeNextPath(next)} />
         {process.env.NODE_ENV !== "production" && (
-          <p className={styles.hint}>
-            Development accounts: e.g. student.one@campus.example,
-            faculty.one@campus.example or admin.one@campus.example with
-            password <code>password123</code>.
-          </p>
+          <details className={styles.hint}>
+            <summary>Local development access</summary>
+            <p>Seeded test accounts are available for local development. See the “Local demo accounts” section in the repository README for account details.</p>
+          </details>
         )}
       </div>
     </main>

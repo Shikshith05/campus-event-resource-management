@@ -31,12 +31,12 @@ export default async function DashboardPage({
   const [{ denied }, visible] = await Promise.all([searchParams, visibleEventCount(user)]);
 
   const actions = [
-    { href: "/events/new", title: "Submit an event", detail: "Create a request and start its approval workflow.", color: "#176b52" },
-    { href: "/events", title: "Browse event requests", detail: "View visible event status and approval timelines.", color: "#4e8b71" },
-    { href: "/availability", title: "Check venue dates", detail: "Browse reservations and pending requests.", color: "#d99b37" },
-    ...(APPROVAL_ROLES.includes(user.role) ? [{ href: "/approvals", title: "Review approvals", detail: "Open requests assigned to you.", color: "#b45c49" }] : []),
-    ...(STAFF_ROLES.includes(user.role) ? [{ href: "/analytics", title: "View analytics", detail: "Review event and resource usage.", color: "#5670a4" }] : []),
-    ...(ADMIN_ROLES.includes(user.role) ? [{ href: "/admin", title: "Manage inventory", detail: "Update venues and shared resources.", color: "#815b91" }] : [])
+    { href: "/events/new", title: "Submit an event", detail: "Create a request and start its approval workflow." },
+    { href: "/events", title: "Browse event requests", detail: "View visible event status and approval timelines." },
+    { href: "/availability", title: "Check venue dates", detail: "Browse reservations and pending requests." },
+    ...(APPROVAL_ROLES.includes(user.role) ? [{ href: "/approvals", title: "Review approvals", detail: "Open requests assigned to you." }] : []),
+    ...(STAFF_ROLES.includes(user.role) ? [{ href: "/analytics", title: "View analytics", detail: "Review event and resource usage." }] : []),
+    ...(ADMIN_ROLES.includes(user.role) ? [{ href: "/admin", title: "Manage inventory", detail: "Update venues and shared resources." }] : [])
   ];
 
   return <AppShell active="">
@@ -45,15 +45,14 @@ export default async function DashboardPage({
     </div>
     {denied && <p className="message error" role="alert">You do not have access to that page.</p>}
     <div className="section-stack">
-      <section className="panel panel-pad" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24, background: "linear-gradient(115deg, #fff 42%, #e8f4ee 100%)" }}>
-        <div><span className="eyebrow">Campus activity</span><h2 className="panel-title" style={{ fontSize: 20 }}>Requests visible to your role</h2><p className="panel-copy" style={{ marginBottom: 0 }}>Your access is enforced by your account and campus permissions.</p></div>
-        <strong style={{ color: "#176b52", fontSize: 40, lineHeight: 1, letterSpacing: "-.06em" }}>{visible ?? "—"}</strong>
+      <section className="panel panel-pad dashboard-summary">
+        <div><span className="eyebrow">Campus activity</span><h2 className="panel-title">Requests visible to your role</h2><p className="panel-copy">Your access is enforced by your account and campus permissions.</p></div>
+        <strong className="dashboard-count">{visible ?? "—"}</strong>
       </section>
       <div className="grid three">
-        {actions.map((action, index) => <Link key={action.href} href={action.href} className="panel panel-pad" style={{ minHeight: 160, textDecoration: "none", boxShadow: "var(--shadow)" }}>
-          <span style={{ display: "block", width: 9, height: 9, marginBottom: 18, borderRadius: 99, background: action.color }} />
-          <h2 className="panel-title">{action.title}</h2><p className="panel-copy" style={{ marginTop: 7 }}>{action.detail}</p>
-          <span className="subtle-link">Open →</span>
+        {actions.map(action => <Link key={action.href} href={action.href} className="panel panel-pad dashboard-action">
+          <h2 className="panel-title">{action.title}</h2><p className="panel-copy">{action.detail}</p>
+          <span className="subtle-link">Open <span aria-hidden="true">→</span></span>
         </Link>)}
       </div>
     </div>

@@ -90,9 +90,9 @@ export default function AvailabilityCalendar() {
               const isCurrentMonth = date.getMonth() === month.getMonth();
               return (
                 <button className={`calendar-cell${isCurrentMonth ? "" : " outside"}${dateKey(date) === selected ? " selected" : ""}`}
-                  type="button" role="gridcell" aria-selected={dateKey(date) === selected} key={dateKey(date)} onClick={() => { setSelected(dateKey(date)); setMonth(new Date(date.getFullYear(), date.getMonth(), 1)); }}>
+                  type="button" role="gridcell" aria-label={`${new Intl.DateTimeFormat(undefined, { dateStyle: "full" }).format(date)} · ${bookings.length} bookings`} aria-selected={dateKey(date) === selected} key={dateKey(date)} onClick={() => { setSelected(dateKey(date)); setMonth(new Date(date.getFullYear(), date.getMonth(), 1)); }}>
                   <span className="calendar-number">{date.getDate()}</span>
-                  <span className="calendar-dots" aria-label={`${bookings.length} bookings`}>
+                  <span className="calendar-dots" aria-hidden="true">
                     {bookings.slice(0, 8).map((booking, index) => <span className={`calendar-dot${booking.booking_status === "PENDING" ? " pending" : ""}`} key={`${booking.booking_id}-${index}`} />)}
                   </span>
                 </button>

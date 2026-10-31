@@ -109,16 +109,16 @@ export default function MyEvents() {
         {loading ? <p className="muted">Loading your requests…</p> : events.length ? (
           <div className="section-stack">
             {events.map(event => (
-              <article className="panel panel-pad" key={event.event_id} style={{ boxShadow: "none" }}>
+              <article className="panel panel-pad event-card" key={event.event_id}>
                 <div className="card-head">
                   <div>
                     <span className={`pill ${statusClass(event.event_status)}`}>{event.event_status.replaceAll("_", " ")}</span>
-                    <h3 style={{ margin: "10px 0 4px", fontSize: 17 }}>{event.title}</h3>
-                    <p className="muted" style={{ margin: 0, fontSize: 12 }}>
+                    <h3 className="event-title">{event.title}</h3>
+                    <p className="event-summary muted">
                       {event.category.replaceAll("_", " ")} · {event.event_type.replaceAll("_", " ")} · {event.expected_footfall} expected
                       {event.department_code ? ` · ${event.department_code}` : ""}{event.club_name ? ` · ${event.club_name}` : ""}
                     </p>
-                    <p className="muted" style={{ margin: "5px 0 0", fontSize: 12 }}>Organizer: {event.organizer_name}</p>
+                    <p className="event-organizer muted">Organizer: {event.organizer_name}</p>
                   </div>
                   <button className="btn secondary small" type="button" onClick={() => void loadTimeline(event.event_id)}>
                     {selectedId === event.event_id ? "Refresh timeline" : "Approval timeline"}
@@ -132,7 +132,7 @@ export default function MyEvents() {
                 </div>
                 {event.guest_name && <GuestBlock guest={event} />}
                 {selectedId === event.event_id && (
-                  <div style={{ marginTop: 18, paddingTop: 18, borderTop: "1px solid var(--line)" }}>
+                  <div className="timeline-panel">
                     {timelineLoading && <p className="muted">Loading timeline…</p>}
                     {timelineError && <p className="message error" role="alert">{timelineError}</p>}
                     {timeline && <WorkflowTimeline data={timeline} guest={event.guest_name ? event : null} />}
@@ -149,7 +149,7 @@ export default function MyEvents() {
 
 function GuestBlock({ guest }: { guest: GuestDetails }) {
   return (
-    <div className="comment-box" style={{ marginTop: 14 }}>
+    <div className="comment-box guest-details">
       <span className="field-help">Guest lecture</span>
       <div><strong>{guest.guest_name}</strong>{guest.guest_affiliation ? ` · ${guest.guest_affiliation}` : ""}</div>
       {guest.talk_topic && <div>Topic: {guest.talk_topic}</div>}
@@ -160,19 +160,20 @@ function GuestBlock({ guest }: { guest: GuestDetails }) {
 function WorkflowTimeline({ data, guest }: { data: WorkflowResponse; guest: GuestDetails | null }) {
   if (!data.workflow) return <div><h3 className="panel-title">Approval timeline</h3><p className="muted">This event does not have a workflow. It may still be a draft.</p></div>;
   return (
-    <div className="grid two" style={{ marginTop: 16 }}>
+    <div className="grid two workflow-details">
       <div>
         <div className="card-head"><div><h3 className="panel-title">Approval progress</h3><p className="panel-copy">Submitted · {fmtDate(data.workflow.submitted_at)}</p></div><span className={`pill ${statusClass(data.workflow.status)}`}>{data.workflow.status.replaceAll("_", " ")}</span></div>
-        {guest && <p className="timeline-detail" style={{ margin: "0 0 4px" }}>Guest lecture by {guest.guest_name}{guest.guest_affiliation ? ` (${guest.guest_affiliation})` : ""}{guest.talk_topic ? `: “${guest.talk_topic}”` : ""}</p>}
+        {guest && <p className="timeline-detail guest-summary">Guest lecture by {guest.guest_name}{guest.guest_affiliation ? ` (${guest.guest_affiliation})` : ""}{guest.talk_topic ? `: “${guest.talk_topic}”` : ""}</p>}
         <ol className="timeline">
           {data.workflow.stages.map(stage => {
-            const done = ["APPROVED", "REJECTED", "SKIPPED"].includes(stage.status);
-            const current = stage.status === "PENDING";
+            const done = ["APPROVED", "SKIPPED"].includes(stage.status);
+            const rejected = stage.status === "REJECTED";
+            const current = stage.status === "PENDING" && stage.stage_no === data.workflow?.current_stage_no;
             return <li key={stage.stage_no}>
-              <span className={`timeline-mark${done ? " done" : current ? " current" : ""}`}>{done ? "✓" : stage.stage_no}</span>
+              <span className={`timeline-mark${done ? " done" : rejected ? " rejected" : current ? " current" : ""}`}>{done ? "✓" : rejected ? "×" : stage.stage_no}</span>
               <div>
-                <div className="card-head"><span className="timeline-name">{stage.name}</span><span className={`pill ${stage.status === "APPROVED" ? "approved" : stage.status === "REJECTED" ? "rejected" : current ? "pending" : "neutral"}`}>{stage.status.replaceAll("_", " ")}</span></div>
-                <div className="timeline-detail">{approverLabel(stage.approver_role)}{stage.status === "PENDING" ? " · awaiting action" : ""}{stage.due_by ? ` · due ${fmtDate(stage.due_by)}` : ""}</div>
+                <div className="card-head"><span className="timeline-name">{approverLabel(stage.approver_role)}</span><span className={`pill ${stage.status === "APPROVED" ? "approved" : rejected ? "rejected" : current ? "pending" : "neutral"}`}>{stage.status.replaceAll("_", " ")}</span></div>
+                <div className="timeline-detail">{current ? "Current stage · awaiting action" : stage.status === "PENDING" ? "Pending" : approverLabel(stage.approver_role)}{stage.due_by ? ` · due ${fmtDate(stage.due_by)}` : ""}</div>
                 {stage.acted_at && <div className="timeline-detail">{stage.status === "SKIPPED" ? "Skipped" : stage.status.replaceAll("_", " ")} · {fmtDate(stage.acted_at)}</div>}
                 {stage.comment && <div className="comment-box">“{stage.comment}”</div>}
               </div>

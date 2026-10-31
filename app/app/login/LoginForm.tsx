@@ -6,6 +6,7 @@ import styles from "../auth.module.css";
 export default function LoginForm({ nextPath }: { nextPath: string }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -47,17 +48,27 @@ export default function LoginForm({ nextPath }: { nextPath: string }) {
           required
         />
       </label>
-      <label className={styles.label}>
-        Password
+      <label className={styles.label} htmlFor="login-password">Password</label>
+      <div className={styles.passwordField}>
         <input
-          className={styles.input}
-          type="password"
+          className={`${styles.input} ${styles.passwordInput}`}
+          id="login-password"
+          type={showPassword ? "text" : "password"}
           autoComplete="current-password"
           value={password}
           onChange={event => setPassword(event.target.value)}
           required
         />
-      </label>
+        <button
+          className={styles.passwordToggle}
+          type="button"
+          aria-label={showPassword ? "Hide password" : "Show password"}
+          aria-pressed={showPassword}
+          onClick={() => setShowPassword(value => !value)}
+        >
+          {showPassword ? "Hide" : "Show"}
+        </button>
+      </div>
       <button className={styles.button} type="submit" disabled={submitting}>
         {submitting ? "Logging in..." : "Log in"}
       </button>

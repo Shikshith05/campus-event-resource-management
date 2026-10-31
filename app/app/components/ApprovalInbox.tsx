@@ -74,7 +74,7 @@ export default function ApprovalInbox() {
           <article className="panel approval-card" key={item.event_id}>
             <div className="card-head">
               <div>
-                <span className="eyebrow">{item.stage.name} · stage {item.stage.stage_no} of {item.workflow.total_stages}</span>
+                <span className="eyebrow">{approverLabel(item.stage.approver_role)} · stage {item.stage.stage_no} of {item.workflow.total_stages}</span>
                 <h2 className="panel-title" style={{ fontSize: 21 }}>{item.event?.title ?? `Event #${item.event_id}`}</h2>
                 <p className="panel-copy" style={{ marginTop: 5 }}>Submitted {fmtDate(item.workflow.submitted_at)} by {item.event?.organizer_name ?? "requester"}</p>
               </div>

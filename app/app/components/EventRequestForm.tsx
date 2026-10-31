@@ -153,6 +153,8 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
       )}
 
       <form className="panel panel-pad" onSubmit={submit}>
+        <section className="form-section" aria-labelledby="event-details-heading">
+          <div className="form-section-heading"><h2 id="event-details-heading">Event details</h2><p>Start with the basics for your request.</p></div>
         <div className="field-grid">
           <div className="field full">
             <label htmlFor="event-title">Event name</label>
@@ -176,20 +178,6 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
             </select>
             {isGuestLecture && <span className="field-help">Guest lectures follow the same four approval stages as other proposals.</span>}
           </div>
-          {isGuestLecture && <>
-            <div className="field">
-              <label htmlFor="guest-name">Guest speaker</label>
-              <input className="control" id="guest-name" required minLength={2} maxLength={150} value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="Guest name" />
-            </div>
-            <div className="field">
-              <label htmlFor="guest-affiliation">Guest affiliation</label>
-              <input className="control" id="guest-affiliation" required minLength={2} maxLength={200} value={guestAffiliation} onChange={e => setGuestAffiliation(e.target.value)} placeholder="Organisation or university" />
-            </div>
-            <div className="field full">
-              <label htmlFor="talk-topic">Talk topic</label>
-              <input className="control" id="talk-topic" required minLength={2} maxLength={250} value={talkTopic} onChange={e => setTalkTopic(e.target.value)} placeholder="Title of the talk" />
-            </div>
-          </>}
           {needsDepartment && (
             <div className="field">
               <label htmlFor="department">Department</label>
@@ -214,10 +202,12 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
               {!options.clubs.length && <span className="field-help">No active club memberships are linked to your account.</span>}
             </div>
           )}
-          <div className="field">
-            <label htmlFor="footfall">Expected attendance</label>
-            <input className="control" id="footfall" type="number" min={1} max={selectedVenue?.capacity ?? undefined} required value={footfall} onChange={e => setFootfall(e.target.value)} placeholder="People expected" />
-          </div>
+        </div>
+        </section>
+
+        <section className="form-section" aria-labelledby="venue-schedule-heading">
+          <div className="form-section-heading"><h2 id="venue-schedule-heading">Venue and schedule</h2><p>Choose a confirmed space and event time.</p></div>
+          <div className="field-grid">
           <div className="field">
             <label htmlFor="venue">Preferred venue</label>
             <select className="control" id="venue" required value={venueId} onChange={e => setVenueId(e.target.value)}>
@@ -237,6 +227,10 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
             </span>}
           </div>
           <div className="field">
+            <label htmlFor="footfall">Expected attendance</label>
+            <input className="control" id="footfall" type="number" min={1} max={selectedVenue?.capacity ?? undefined} required value={footfall} onChange={e => setFootfall(e.target.value)} placeholder="People expected" />
+          </div>
+          <div className="field">
             <label htmlFor="start-time">Starts</label>
             <input className="control" id="start-time" type="datetime-local" required value={startTime} onChange={e => setStartTime(e.target.value)} />
           </div>
@@ -244,6 +238,26 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
             <label htmlFor="end-time">Ends</label>
             <input className="control" id="end-time" type="datetime-local" required value={endTime} onChange={e => setEndTime(e.target.value)} />
           </div>
+          </div>
+        </section>
+
+        <section className="form-section" aria-labelledby="additional-info-heading">
+          <div className="form-section-heading"><h2 id="additional-info-heading">Additional information</h2><p>Include guest details or request shared equipment.</p></div>
+          <div className="field-grid">
+          {isGuestLecture && <>
+            <div className="field">
+              <label htmlFor="guest-name">Guest speaker</label>
+              <input className="control" id="guest-name" required minLength={2} maxLength={150} value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="Guest name" />
+            </div>
+            <div className="field">
+              <label htmlFor="guest-affiliation">Guest affiliation</label>
+              <input className="control" id="guest-affiliation" required minLength={2} maxLength={200} value={guestAffiliation} onChange={e => setGuestAffiliation(e.target.value)} placeholder="Organisation or university" />
+            </div>
+            <div className="field full">
+              <label htmlFor="talk-topic">Talk topic</label>
+              <input className="control" id="talk-topic" required minLength={2} maxLength={250} value={talkTopic} onChange={e => setTalkTopic(e.target.value)} placeholder="Title of the talk" />
+            </div>
+          </>}
           <div className="field full">
             <span className="field-label">Equipment request <span className="muted">(optional)</span></span>
             {options.resources.length ? (
@@ -259,6 +273,7 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
             ) : <span className="field-help">No active equipment is listed.</span>}
           </div>
         </div>
+        </section>
         <div className="button-row">
           <button className="btn" type="submit" disabled={busy}>{busy ? "Submitting…" : "Submit for approval"}</button>
           <span className="field-help">Your request is routed through the approval chain after submission.</span>
