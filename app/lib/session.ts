@@ -19,6 +19,7 @@ export const APP_ROLES = [
   "CLUB_COORDINATOR",
   "FACULTY",
   "HOD",
+  "WORKFLOW_APPROVER",
   "ADMIN"
 ] as const;
 export type AppRole = (typeof APP_ROLES)[number];
@@ -27,9 +28,10 @@ export type AppRole = (typeof APP_ROLES)[number];
 export const REQUESTER_ROLES: readonly AppRole[] = ["STUDENT", "CLUB_COORDINATOR"];
 export const APPROVER_ROLES: readonly AppRole[] = ["FACULTY", "HOD"];
 export const STAFF_ROLES: readonly AppRole[] = ["FACULTY", "HOD", "ADMIN"];
-// Everyone who can be assigned an approval stage (club coordinators
-// approve stage 1 of club events).
-export const APPROVAL_ROLES: readonly AppRole[] = ["CLUB_COORDINATOR", "FACULTY", "HOD", "ADMIN"];
+export const EVENT_ROLES: readonly AppRole[] = [...REQUESTER_ROLES, ...STAFF_ROLES];
+// Student coordinators do not approve. The assigned faculty member and
+// workflow-only central approvers can open the approval inbox.
+export const APPROVAL_ROLES: readonly AppRole[] = ["FACULTY", "HOD", "WORKFLOW_APPROVER"];
 export const ADMIN_ROLES: readonly AppRole[] = ["ADMIN"];
 
 export type SessionUser = {
@@ -55,6 +57,11 @@ const PUBLIC_PATHS = ["/login", "/api/auth/login", "/api/health"];
 // Paths limited to some roles. Every other path only needs a valid login.
 // Prefixes here enforce the role boundaries for pages and their APIs.
 const ROLE_RULES: { prefix: string; roles: readonly AppRole[] }[] = [
+  { prefix: "/api/events", roles: EVENT_ROLES },
+  { prefix: "/api/event-options", roles: EVENT_ROLES },
+  { prefix: "/api/availability", roles: EVENT_ROLES },
+  { prefix: "/events", roles: EVENT_ROLES },
+  { prefix: "/availability", roles: EVENT_ROLES },
   { prefix: "/api/analytics", roles: STAFF_ROLES },
   { prefix: "/analytics", roles: STAFF_ROLES },
   { prefix: "/api/approvals", roles: APPROVAL_ROLES },

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { approverLabel } from "../../lib/workflow-labels";
 
 type EventRow = {
   event_id: number;
@@ -30,17 +31,15 @@ type TimelineStage = {
   name: string;
   approver_role: string;
   status: string;
-  assigned_to_name: string | null;
   stage_assigned_at: string | null;
   due_by: string | null;
-  acted_by_name: string | null;
   acted_at: string | null;
   comment: string | null;
 };
 type WorkflowResponse = {
   event: { event_id: number; title: string; status: string };
-  workflow: { status: string; current_stage_no: number | null; submitted_by_name: string | null; submitted_at: string; stages: TimelineStage[] } | null;
-  history: { action: string; stage_no: number | null; acted_by_user_id: number; comment: string | null; created_at: string }[];
+  workflow: { status: string; current_stage_no: number | null; submitted_at: string; stages: TimelineStage[] } | null;
+  history: { action: string; stage_no: number | null; comment: string | null; created_at: string }[];
 };
 
 const fmtDate = (value: string | null | undefined) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
@@ -163,7 +162,7 @@ function WorkflowTimeline({ data, guest }: { data: WorkflowResponse; guest: Gues
   return (
     <div className="grid two" style={{ marginTop: 16 }}>
       <div>
-        <div className="card-head"><div><h3 className="panel-title">Approval progress</h3><p className="panel-copy">Submitted by {data.workflow.submitted_by_name ?? "requester"} · {fmtDate(data.workflow.submitted_at)}</p></div><span className={`pill ${statusClass(data.workflow.status)}`}>{data.workflow.status.replaceAll("_", " ")}</span></div>
+        <div className="card-head"><div><h3 className="panel-title">Approval progress</h3><p className="panel-copy">Submitted · {fmtDate(data.workflow.submitted_at)}</p></div><span className={`pill ${statusClass(data.workflow.status)}`}>{data.workflow.status.replaceAll("_", " ")}</span></div>
         {guest && <p className="timeline-detail" style={{ margin: "0 0 4px" }}>Guest lecture by {guest.guest_name}{guest.guest_affiliation ? ` (${guest.guest_affiliation})` : ""}{guest.talk_topic ? `: “${guest.talk_topic}”` : ""}</p>}
         <ol className="timeline">
           {data.workflow.stages.map(stage => {
@@ -173,8 +172,8 @@ function WorkflowTimeline({ data, guest }: { data: WorkflowResponse; guest: Gues
               <span className={`timeline-mark${done ? " done" : current ? " current" : ""}`}>{done ? "✓" : stage.stage_no}</span>
               <div>
                 <div className="card-head"><span className="timeline-name">{stage.name}</span><span className={`pill ${stage.status === "APPROVED" ? "approved" : stage.status === "REJECTED" ? "rejected" : current ? "pending" : "neutral"}`}>{stage.status.replaceAll("_", " ")}</span></div>
-                <div className="timeline-detail">{stage.approver_role.replaceAll("_", " ")} · {stage.assigned_to_name ?? "Approver pending"}{stage.due_by ? ` · due ${fmtDate(stage.due_by)}` : ""}</div>
-                {stage.acted_at && <div className="timeline-detail">{stage.status === "SKIPPED" ? "Skipped" : `${stage.status.toLowerCase()} by ${stage.acted_by_name ?? "approver"}`} · {fmtDate(stage.acted_at)}</div>}
+                <div className="timeline-detail">{approverLabel(stage.approver_role)}{stage.status === "PENDING" ? " · awaiting action" : ""}{stage.due_by ? ` · due ${fmtDate(stage.due_by)}` : ""}</div>
+                {stage.acted_at && <div className="timeline-detail">{stage.status === "SKIPPED" ? "Skipped" : stage.status.replaceAll("_", " ")} · {fmtDate(stage.acted_at)}</div>}
                 {stage.comment && <div className="comment-box">“{stage.comment}”</div>}
               </div>
             </li>;

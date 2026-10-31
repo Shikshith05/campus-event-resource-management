@@ -53,6 +53,7 @@ const DATABASE_ROLE: Record<AppRole, string> = {
   CLUB_COORDINATOR: "cerms_student",
   FACULTY: "cerms_faculty",
   HOD: "cerms_faculty",
+  WORKFLOW_APPROVER: "cerms_workflow_approver",
   ADMIN: "cerms_admin"
 };
 

@@ -13,6 +13,12 @@
 // come from workflow_context(); see db/sql/workflow.sql.
 import type { Db, ObjectId } from "mongodb";
 import { mongoDatabase } from "./db";
+import {
+  nextUnstartedWorkflowStage,
+  validateApprovalStageSequence,
+  validateApproverAssignments,
+  validateCurrentWorkflowActor
+} from "./workflow-policy";
 
 // ---------------------------------------------------------------------
 // Document shapes
@@ -27,7 +33,6 @@ type TemplateStage = {
   approver_role: string;
   approver_rule: string;
   sla_hours: number;
-  skip_if_requester_role?: string[];
 };
 
 type WorkflowTemplate = {
@@ -102,7 +107,7 @@ export type WorkflowEvent = {
   category: string;
   event_type: string;
   department_code: string | null;
-  requester_role: string;          // app role of the organizer (skip_if_requester_role)
+  requester_role: string;          // app role of the organizer, retained for template matching
   submitted_by_user_id: number;
   [field: string]: unknown;        // extra fields checked by required_fields
 };
@@ -145,8 +150,9 @@ function templateMatches(template: WorkflowTemplate, event: WorkflowEvent): bool
 // More non-null fields in applies_to = more specific.
 function templateSpecificity(template: WorkflowTemplate): number {
   const appliesTo = template.applies_to ?? {};
-  return [appliesTo.department_code, appliesTo.event_type, appliesTo.event_category]
-    .filter(value => value != null).length;
+  return (appliesTo.department_code != null ? 100 : 0)
+    + (appliesTo.event_type != null ? 10 : 0)
+    + (appliesTo.event_category != null ? 1 : 0);
 }
 
 // The most specific active template for the event; newest version wins a tie.
@@ -174,7 +180,7 @@ function resolveApprover(stage: TemplateStage, approvers: Approvers): number {
   const userId = approvers[stage.approver_rule];
   if (userId == null) {
     throw new WorkflowError(
-      `No approver found for rule ${stage.approver_rule} at stage ${stage.stage_no}`,
+      `No active assignment exists for ${stage.name} (${stage.approver_role}); configure an approver assignment before submitting this event`,
       422
     );
   }
@@ -216,8 +222,8 @@ async function createNotification(
 
 // Starts the approval of one event: copies the template's stages into a
 // new instance (so later template edits do not change running
-// approvals), marks stages SKIPPED when skip_if_requester_role says so,
-// assigns every other stage to a user, and makes the first one PENDING.
+// approvals), assigns every required stage to a user, and makes the first
+// one PENDING. Missing, self, or duplicate assignments block submission.
 export async function createWorkflowInstance(
   event: WorkflowEvent,
   approvers: Approvers
@@ -228,6 +234,10 @@ export async function createWorkflowInstance(
   }
 
   const template = await selectWorkflowTemplate(event);
+  const sequenceError = validateApprovalStageSequence(template.stages);
+  if (sequenceError) {
+    throw new WorkflowError(`Workflow template ${template.template_code} is invalid: ${sequenceError}`, 422);
+  }
   const missing = missingRequiredFields(template, event);
   if (missing.length > 0) {
     throw new WorkflowError(
@@ -238,15 +248,14 @@ export async function createWorkflowInstance(
 
   const submittedAt = new Date();
   const stages: WorkflowStage[] = template.stages.map(stage => {
-    const skipped = (stage.skip_if_requester_role ?? []).includes(event.requester_role);
     return {
       stage_no: stage.stage_no,
       name: stage.name,
       approver_role: stage.approver_role,
       approver_rule: stage.approver_rule,
       sla_hours: stage.sla_hours,
-      assigned_to_user_id: skipped ? null : resolveApprover(stage, approvers),
-      status: skipped ? "SKIPPED" : "NOT_STARTED",
+      assigned_to_user_id: resolveApprover(stage, approvers),
+      status: "NOT_STARTED",
       due_by: null,
       stage_assigned_at: null,
       acted_by_user_id: null,
@@ -255,10 +264,11 @@ export async function createWorkflowInstance(
     };
   });
 
-  const first = stages.find(stage => stage.status === "NOT_STARTED");
-  if (!first) {
-    throw new WorkflowError(`Workflow for event ${event.event_id} has no actionable stage`, 422);
+  const assignmentError = validateApproverAssignments(stages, event.submitted_by_user_id);
+  if (assignmentError) {
+    throw new WorkflowError(assignmentError, 422);
   }
+  const first = stages[0];
   first.status = "PENDING";
   first.stage_assigned_at = submittedAt;
   first.due_by = new Date(submittedAt.getTime() + (first.sla_hours ?? 0) * HOUR_MS);
@@ -377,14 +387,10 @@ async function actOnStage(
   if (!instance) {
     throw new WorkflowError(`Workflow for event ${eventId} does not exist`, 404);
   }
-  if (instance.status !== "IN_PROGRESS") {
-    throw new WorkflowError(`Workflow for event ${eventId} is already ${instance.status}`, 409);
-  }
-
+  const actionCheck = validateCurrentWorkflowActor(instance, actorId);
+  if (!actionCheck.ok) throw new WorkflowError(actionCheck.message, actionCheck.status);
   const pendingStage = currentPendingStage(instance);
-  if (!pendingStage || pendingStage.assigned_to_user_id !== actorId) {
-    throw new WorkflowError(`User ${actorId} is not assigned to the current workflow stage`, 403);
-  }
+  if (!pendingStage) throw new WorkflowError("Workflow has no pending current stage", 409);
 
   const nextStatus: StageStatus = action === "APPROVE" ? "APPROVED" : "REJECTED";
   const now = new Date();
@@ -399,9 +405,10 @@ async function actOnStage(
   };
 
   let outcome: WorkflowOutcome;
-  const nextStage = instance.stages.find(
-    stage => stage.stage_no > pendingStage.stage_no && stage.status === "NOT_STARTED"
-  );
+  const nextStageNo = nextUnstartedWorkflowStage(instance.stages, pendingStage.stage_no);
+  const nextStage = nextStageNo == null
+    ? undefined
+    : instance.stages.find(stage => stage.stage_no === nextStageNo);
   if (action === "REJECT") {
     outcome = "REJECTED";
     update.status = "REJECTED";
@@ -499,31 +506,36 @@ export type WorkflowContextRow = {
   department_code: string | null;
   organizer_id: number;
   requester_role: string;
-  coordinator_of_event_club: number | null;
-  advisor_of_event_club: number | null;
-  hod_of_event_department: number | null;
-  any_faculty_of_event_department: number | null;
-  any_admin: number | null;
+  club_coordinator_user_id: number | null;
+  hod_user_id: number | null;
+  dean_of_student_affairs_user_id: number | null;
+  vice_chancellor_user_id: number | null;
 };
 
 // Column names of workflow_context() -> approver_rule names in the templates.
 export function approversFromContext(context: WorkflowContextRow): Approvers {
   return {
-    COORDINATOR_OF_EVENT_CLUB: context.coordinator_of_event_club,
-    ADVISOR_OF_EVENT_CLUB: context.advisor_of_event_club,
-    HOD_OF_EVENT_DEPARTMENT: context.hod_of_event_department,
-    ANY_FACULTY_OF_EVENT_DEPARTMENT: context.any_faculty_of_event_department,
-    ANY_ADMIN: context.any_admin
+    CLUB_COORDINATOR: context.club_coordinator_user_id,
+    HOD: context.hod_user_id,
+    DEAN_OF_STUDENT_AFFAIRS: context.dean_of_student_affairs_user_id,
+    VICE_CHANCELLOR: context.vice_chancellor_user_id
   };
 }
 
-export function eventFromContext(context: WorkflowContextRow, submittedBy: number): WorkflowEvent {
+export function eventFromContext(
+  context: WorkflowContextRow,
+  submittedBy: number,
+  guestDetails?: { guest_name?: string | null; guest_affiliation?: string | null; talk_topic?: string | null }
+): WorkflowEvent {
   return {
     event_id: context.event_id,
     category: context.category,
     event_type: context.event_type,
     department_code: context.department_code,
     requester_role: context.requester_role,
-    submitted_by_user_id: submittedBy
+    submitted_by_user_id: submittedBy,
+    guest_name: guestDetails?.guest_name ?? null,
+    guest_affiliation: guestDetails?.guest_affiliation ?? null,
+    talk_topic: guestDetails?.talk_topic ?? null
   };
 }

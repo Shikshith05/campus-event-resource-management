@@ -10,6 +10,7 @@ import type { SessionUser } from "../../lib/session";
 export const metadata: Metadata = { title: "Dashboard | CERMS" };
 
 async function visibleEventCount(user: SessionUser): Promise<number | null> {
+  if (user.role === "WORKFLOW_APPROVER") return null;
   try {
     const [row] = await queryAsUser<{ visible: number }>(user, "SELECT COUNT(*)::int AS visible FROM event");
     return row?.visible ?? 0;
@@ -26,6 +27,7 @@ export default async function DashboardPage({
 }) {
   const user = await getSessionUser();
   if (!user) redirect("/login?next=/dashboard");
+  if (user.role === "WORKFLOW_APPROVER") redirect("/approvals");
   const [{ denied }, visible] = await Promise.all([searchParams, visibleEventCount(user)]);
 
   const actions = [

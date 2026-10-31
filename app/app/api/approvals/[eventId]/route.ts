@@ -81,6 +81,7 @@ export async function POST(
     let eventStatus = "PENDING_APPROVAL";
     const updated = await withUserTransaction(user, async client => {
       const beforeWrite = async (outcome: WorkflowOutcome) => {
+        await client.query("SELECT assert_workflow_stage_assignment($1, $2)", [eventId, stage.stage_no]);
         const { rows } = await client.query<{ status: string }>(
           "SELECT status FROM event WHERE event_id = $1",
           [eventId]
@@ -92,7 +93,7 @@ export async function POST(
           );
         }
         if (outcome !== "IN_PROGRESS") {
-          await client.query("SELECT record_workflow_decision($1, $2)", [eventId, outcome]);
+          await client.query("SELECT record_workflow_decision($1, $2, $3)", [eventId, stage.stage_no, outcome]);
           eventStatus = outcome;
         }
       };
@@ -107,8 +108,8 @@ export async function POST(
       stage_no: stage.stage_no,
       workflow_status: updated.status,
       current_stage_no: updated.current_stage_no,
-      next_approver_user_id:
-        updated.stages.find(s => s.stage_no === updated.current_stage_no)?.assigned_to_user_id ?? null,
+      next_approver_role:
+        updated.stages.find(s => s.stage_no === updated.current_stage_no)?.approver_role ?? null,
       event_status: eventStatus
     });
   } catch (error) {

@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { approverLabel } from "../../lib/workflow-labels";
 
 type ApprovalItem = {
   event_id: number;
@@ -92,7 +93,7 @@ export default function ApprovalInbox() {
                   <div><span className="field-help">Venue</span><div>{item.booking?.venue_name ?? "Unavailable"}{item.booking ? ` · ${item.booking.venue_capacity} seats` : ""}</div></div>
                   <div><span className="field-help">Event time</span><div>{item.booking ? `${fmtDate(item.booking.start_time)} – ${fmtDate(item.booking.end_time)}` : "Unavailable"}</div></div>
                   <div><span className="field-help">Decision due</span><div>{fmtDate(item.stage.due_by)}</div></div>
-                  <div><span className="field-help">Approver role</span><div>{item.stage.approver_role.replaceAll("_", " ")}</div></div>
+                  <div><span className="field-help">Approver role</span><div>{approverLabel(item.stage.approver_role)}</div></div>
                 </div>
               </div>
               <div className="approval-action">

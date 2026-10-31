@@ -36,8 +36,9 @@ export async function requireUser(
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   STUDENT: "Student",
-  CLUB_COORDINATOR: "Club Coordinator",
+  CLUB_COORDINATOR: "Student Club Coordinator",
   FACULTY: "Faculty",
   HOD: "Head of Department",
+  WORKFLOW_APPROVER: "Workflow Approver",
   ADMIN: "Admin"
 };

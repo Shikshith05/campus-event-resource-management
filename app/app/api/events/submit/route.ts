@@ -12,7 +12,7 @@ import {
 } from "../../../../lib/workflow";
 
 const EVENT_TYPES = [
-  "GUEST_LECTURE", "WORKSHOP", "SEMINAR", "TECH_FEST", "CULTURAL",
+  "GUEST_LECTURE", "HACKATHON", "WORKSHOP", "SEMINAR", "TECH_FEST", "CULTURAL",
   "CLUB_MEET", "ORIENTATION", "COMPETITION", "SPORTS", "OTHER"
 ] as const;
 
@@ -47,11 +47,14 @@ const submitSchema = z
     message: "Each resource may appear only once",
     path: ["resources"]
   })
+  .refine(body => body.department_id !== null, {
+    message: "A department is required so every proposal can be routed to its HOD stage",
+    path: ["department_id"]
+  })
   .superRefine((body, ctx) => {
     const guestFields = ["guest_name", "guest_affiliation", "talk_topic"] as const;
     if (body.event_type === "GUEST_LECTURE") {
-      // The GUEST_LECTURE template applies to ACADEMIC guest lectures; any
-      // other category would fall back to a different template.
+      // Guest lectures retain their dedicated academic-event validation.
       if (body.category !== "ACADEMIC") {
         ctx.addIssue({ code: "custom", path: ["category"], message: "A guest lecture must be in the ACADEMIC category" });
       }
@@ -116,26 +119,19 @@ export async function POST(request: Request) {
     pg = await withUserTransaction(user, async client => {
       const { rows: [call] } = await client.query<CallResult>(
         `CALL submit_booking_request($1, $2, $3, $4, $5, $6, $7, $8, $9, $10,
-                                     $11::int[], $12::int[], NULL, NULL, NULL)`,
+                                     $11::int[], $12::int[], $13, $14, $15,
+                                     NULL, NULL, NULL)`,
         [
           user.userId, input.title, input.category, input.event_type,
           input.department_id, input.club_id, input.expected_footfall,
           input.venue_id, input.start_time, input.end_time,
           input.resources.map(r => r.resource_id),
-          input.resources.map(r => r.quantity)
+          input.resources.map(r => r.quantity),
+          input.guest_name ?? null,
+          input.guest_affiliation ?? null,
+          input.talk_topic ?? null
         ]
       );
-
-      // Guest details belong to the event: same transaction, so the event
-      // never exists without them. Row-level security (guest_lecture.sql)
-      // only allows this for the caller's own guest-lecture event.
-      if (isGuestLecture) {
-        await client.query(
-          `INSERT INTO guest_lecture_details (event_id, guest_name, guest_affiliation, talk_topic)
-           VALUES ($1, $2, $3, $4)`,
-          [call.p_event_id, input.guest_name, input.guest_affiliation, input.talk_topic]
-        );
-      }
 
       if (call.p_booking_status === "REJECTED") {
         // The venue went to a higher-priority booking. No approval is
@@ -190,15 +186,7 @@ export async function POST(request: Request) {
   // -------------------------------------------------------------------
   try {
     const instance = await createWorkflowInstance(
-      {
-        ...eventFromContext(pg.context, user.userId),
-        // Checked against the template's required_fields (GUEST_LECTURE).
-        ...(isGuestLecture && {
-          guest_name: input.guest_name,
-          guest_affiliation: input.guest_affiliation,
-          talk_topic: input.talk_topic
-        })
-      },
+      eventFromContext(pg.context, user.userId, input),
       approversFromContext(pg.context)
     );
     return NextResponse.json(
@@ -216,7 +204,6 @@ export async function POST(request: Request) {
             stage_no: stage.stage_no,
             name: stage.name,
             approver_role: stage.approver_role,
-            assigned_to_user_id: stage.assigned_to_user_id,
             status: stage.status
           }))
         }

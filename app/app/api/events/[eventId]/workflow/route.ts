@@ -41,22 +41,6 @@ export async function GET(
       return NextResponse.json({ event, workflow: null, history: [] });
     }
 
-    // Names of everyone in the timeline (app_user is readable without
-    // password_hash by every role).
-    const userIds = [...new Set(
-      instance.stages.flatMap(s => [s.assigned_to_user_id, s.acted_by_user_id])
-        .concat(instance.submitted_by_user_id)
-        .filter((value): value is number => value != null)
-    )];
-    const names = new Map(
-      (await queryAsUser<{ user_id: number; full_name: string }>(
-        user,
-        "SELECT user_id, full_name FROM app_user WHERE user_id = ANY($1::int[])",
-        [userIds]
-      )).map(row => [row.user_id, row.full_name])
-    );
-    const nameOf = (userId: number | null) => (userId == null ? null : names.get(userId) ?? null);
-
     return NextResponse.json({
       event,
       workflow: {
@@ -64,20 +48,14 @@ export async function GET(
         template_version: instance.template_version,
         status: instance.status,
         current_stage_no: instance.current_stage_no,
-        submitted_by_user_id: instance.submitted_by_user_id,
-        submitted_by_name: nameOf(instance.submitted_by_user_id),
         submitted_at: instance.submitted_at,
         stages: instance.stages.map(stage => ({
           stage_no: stage.stage_no,
           name: stage.name,
           approver_role: stage.approver_role,
           status: stage.status,
-          assigned_to_user_id: stage.assigned_to_user_id,
-          assigned_to_name: nameOf(stage.assigned_to_user_id),
           stage_assigned_at: stage.stage_assigned_at ?? null,
           due_by: stage.due_by ?? null,
-          acted_by_user_id: stage.acted_by_user_id,
-          acted_by_name: nameOf(stage.acted_by_user_id),
           acted_at: stage.acted_at,
           comment: stage.comment
         }))
@@ -85,7 +63,6 @@ export async function GET(
       history: audit.map(entry => ({
         action: entry.action,
         stage_no: entry.stage_no,
-        acted_by_user_id: entry.acted_by_user_id,
         comment: entry.comment,
         created_at: entry.created_at
       }))

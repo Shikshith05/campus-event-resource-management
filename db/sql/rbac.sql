@@ -19,6 +19,7 @@
 -- App role (app_user.role_id)  ->  database role
 --   STUDENT, CLUB_COORDINATOR  ->  cerms_student
 --   FACULTY, HOD               ->  cerms_faculty
+--   WORKFLOW_APPROVER          ->  cerms_workflow_approver
 --   ADMIN                      ->  cerms_admin
 -- =====================================================================
 
@@ -31,7 +32,8 @@ DECLARE
     r TEXT;
 BEGIN
     -- Group roles: hold privileges, cannot log in.
-    FOREACH r IN ARRAY ARRAY['cerms_student', 'cerms_faculty', 'cerms_admin'] LOOP
+    FOREACH r IN ARRAY ARRAY['cerms_student', 'cerms_faculty', 'cerms_admin',
+                             'cerms_workflow_approver'] LOOP
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
             EXECUTE format('CREATE ROLE %I NOLOGIN', r);
         END IF;
@@ -60,7 +62,7 @@ GRANT cerms_student TO cerms_faculty;
 GRANT cerms_faculty TO cerms_admin;
 
 -- The app may switch to any of the three groups.
-GRANT cerms_student, cerms_faculty, cerms_admin TO cerms_app;
+GRANT cerms_student, cerms_faculty, cerms_admin, cerms_workflow_approver TO cerms_app;
 
 -- Test logins.
 GRANT cerms_student TO cerms_test_student;
@@ -109,17 +111,18 @@ $$;
 -- ---------------------------------------------------------------------
 -- 3. Start from zero (makes the script re-runnable)
 -- ---------------------------------------------------------------------
-REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM cerms_student, cerms_faculty, cerms_admin, cerms_app;
-REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM cerms_student, cerms_faculty, cerms_admin, cerms_app;
-REVOKE ALL ON ALL ROUTINES  IN SCHEMA public FROM cerms_student, cerms_faculty, cerms_admin, cerms_app;
+REVOKE ALL ON ALL TABLES    IN SCHEMA public FROM cerms_student, cerms_faculty, cerms_admin, cerms_workflow_approver, cerms_app;
+REVOKE ALL ON ALL SEQUENCES IN SCHEMA public FROM cerms_student, cerms_faculty, cerms_admin, cerms_workflow_approver, cerms_app;
+REVOKE ALL ON ALL ROUTINES  IN SCHEMA public FROM cerms_student, cerms_faculty, cerms_admin, cerms_workflow_approver, cerms_app;
 -- SECURITY DEFINER routines must not be callable by everyone (PUBLIC).
 REVOKE EXECUTE ON FUNCTION find_user_for_login(TEXT) FROM PUBLIC;
 REVOKE EXECUTE ON PROCEDURE submit_booking_request(
     INT, VARCHAR, VARCHAR, VARCHAR, INT, INT, INT, INT,
-    TIMESTAMPTZ, TIMESTAMPTZ, INT[], INT[], INT, INT, VARCHAR
+    TIMESTAMPTZ, TIMESTAMPTZ, INT[], INT[], VARCHAR, VARCHAR, VARCHAR,
+    INT, INT, VARCHAR
 ) FROM PUBLIC;
 
-GRANT USAGE ON SCHEMA public TO cerms_student, cerms_faculty, cerms_admin, cerms_app;
+GRANT USAGE ON SCHEMA public TO cerms_student, cerms_faculty, cerms_admin, cerms_workflow_approver, cerms_app;
 
 
 -- ---------------------------------------------------------------------
@@ -150,18 +153,24 @@ GRANT UPDATE (status) ON booking TO cerms_student;
 -- Routines.
 GRANT EXECUTE ON PROCEDURE submit_booking_request(
     INT, VARCHAR, VARCHAR, VARCHAR, INT, INT, INT, INT,
-    TIMESTAMPTZ, TIMESTAMPTZ, INT[], INT[], INT, INT, VARCHAR
+    TIMESTAMPTZ, TIMESTAMPTZ, INT[], INT[], VARCHAR, VARCHAR, VARCHAR,
+    INT, INT, VARCHAR
 ) TO cerms_student;
 GRANT EXECUTE ON FUNCTION suggest_alternate_venues(INT), app_current_user_id()
              TO cerms_student;
+
+-- Workflow-only accounts can read only final event status directly;
+-- approval_details() exposes a request only for assigned event stages.
+GRANT SELECT (status) ON event TO cerms_workflow_approver;
 
 -- cerms_faculty (also has everything granted to cerms_student) ----------
 GRANT SELECT ON booking_resource, booking_status_history,
                 requester_booking_history, venue_utilization,
                 event_statistics, resource_utilization
              TO cerms_faculty;
--- Approve / reject: faculty may change the STATUS of any event or booking.
-GRANT UPDATE (status) ON event, booking TO cerms_faculty;
+-- Faculty may update booking status, but event approval status can only
+-- be changed through record_workflow_decision() after stage assignment checks.
+GRANT UPDATE (status) ON booking TO cerms_faculty;
 
 -- cerms_admin (also has everything granted to faculty) -------------------
 -- Full control, including the only access to role and
@@ -284,8 +293,9 @@ SELECT 'T2 student, user 1' AS test, booking_id, event_id, status FROM booking O
 UPDATE event SET title = 'Hijacked' WHERE event_id = 1;
 
 -- T4. A student may create their own DRAFT event (RLS WITH CHECK passes).
-INSERT INTO event (title, category, event_type, organizer_id, expected_footfall, status)
-VALUES ('T4 own draft', 'PERSONAL', 'OTHER', 1, 10, 'DRAFT');
+INSERT INTO event (title, category, event_type, organizer_id, department_id,
+                   expected_footfall, status)
+VALUES ('T4 own draft', 'PERSONAL', 'OTHER', 1, 1, 10, 'DRAFT');
 
 -- T5. FORBIDDEN: a student UPDATE on a table they have no privilege on.
 --     Expected: ERROR permission denied for table venue
@@ -311,8 +321,9 @@ SAVEPOINT t7;
 SET LOCAL ROLE cerms_student;
 SELECT set_config('app.current_user_id', '1', TRUE);
 \set ON_ERROR_STOP off
-INSERT INTO event (title, category, event_type, organizer_id, expected_footfall)
-VALUES ('Fake request', 'PERSONAL', 'OTHER', 2, 10);
+INSERT INTO event (title, category, event_type, organizer_id, department_id,
+                   expected_footfall)
+VALUES ('Fake request', 'PERSONAL', 'OTHER', 2, 1, 10);
 \set ON_ERROR_STOP on
 ROLLBACK TO SAVEPOINT t7;
 

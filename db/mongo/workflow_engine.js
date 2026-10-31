@@ -16,6 +16,10 @@ const workflowCollections = {
   notifications: db.workflow_notifications
 };
 
+const REQUIRED_APPROVAL_ROLES = [
+  'CLUB_COORDINATOR', 'HOD', 'DEAN_OF_STUDENT_AFFAIRS', 'VICE_CHANCELLOR'
+];
+
 function templateMatches(template, event) {
   const appliesTo = template.applies_to || {};
   return template.is_active === true
@@ -26,11 +30,9 @@ function templateMatches(template, event) {
 
 function templateSpecificity(template) {
   const appliesTo = template.applies_to || {};
-  return [
-    appliesTo.department_code,
-    appliesTo.event_type,
-    appliesTo.event_category
-  ].filter(value => value != null).length;
+  return (appliesTo.department_code != null ? 100 : 0)
+    + (appliesTo.event_type != null ? 10 : 0)
+    + (appliesTo.event_category != null ? 1 : 0);
 }
 
 function selectWorkflowTemplate(event) {
@@ -59,7 +61,7 @@ function resolveApprover(stage, approvers) {
   const userId = approvers[stage.approver_rule];
   if (userId == null) {
     throw new Error(
-      `No approver supplied for rule ${stage.approver_rule} at stage ${stage.stage_no}`
+      `No active assignment exists for ${stage.name} (${stage.approver_role}); configure an approver assignment before submitting this event`
     );
   }
   return userId;
@@ -99,6 +101,12 @@ function createWorkflowInstance(event, approvers) {
   }
 
   const template = selectWorkflowTemplate(event);
+  if (template.stages.length !== REQUIRED_APPROVAL_ROLES.length
+      || template.stages.some((stage, index) =>
+        stage.stage_no !== index + 1 || stage.approver_role !== REQUIRED_APPROVAL_ROLES[index]
+        || stage.skip_if_requester_role?.length)) {
+    throw new Error(`Workflow template ${template.template_code} must use all four approval stages in order`);
+  }
   const missingFields = requiredFieldsPresent(template, event);
   if (missingFields.length > 0) {
     throw new Error(
@@ -108,10 +116,7 @@ function createWorkflowInstance(event, approvers) {
 
   const submittedAt = new Date();
   const stages = template.stages.map(stage => {
-    const skipped = (stage.skip_if_requester_role || [])
-      .includes(event.requester_role);
-    const assignedTo = skipped ? null : resolveApprover(stage, approvers);
-    const status = skipped ? 'SKIPPED' : 'NOT_STARTED';
+    const assignedTo = resolveApprover(stage, approvers);
     return {
       stage_no: stage.stage_no,
       name: stage.name,
@@ -119,7 +124,7 @@ function createWorkflowInstance(event, approvers) {
       approver_rule: stage.approver_rule,
       sla_hours: stage.sla_hours,
       assigned_to_user_id: assignedTo,
-      status,
+      status: 'NOT_STARTED',
       due_by: null,
       stage_assigned_at: null,
       acted_by_user_id: null,
@@ -128,10 +133,19 @@ function createWorkflowInstance(event, approvers) {
     };
   });
 
-  const firstPending = stages.find(stage => stage.status === 'NOT_STARTED');
-  if (!firstPending) {
-    throw new Error(`Workflow for event ${event.event_id} has no actionable stage`);
-  }
+  const assignments = new Map();
+  stages.forEach(stage => {
+    if (stage.assigned_to_user_id === event.submitted_by_user_id) {
+      throw new Error(`The requester is assigned to ${stage.name}; assign another approver before submitting this event`);
+    }
+    const previousStage = assignments.get(stage.assigned_to_user_id);
+    if (previousStage) {
+      throw new Error(`${previousStage.name} and ${stage.name} resolve to the same user; assign distinct approvers before submitting this event`);
+    }
+    assignments.set(stage.assigned_to_user_id, stage);
+  });
+
+  const firstPending = stages[0];
   firstPending.status = 'PENDING';
   firstPending.stage_assigned_at = submittedAt;
   firstPending.due_by = new Date(

@@ -82,6 +82,7 @@ AS $$
     SELECT v.venue_id, v.name, v.capacity, v.capacity - t.expected_footfall
     FROM venue AS v, target AS t
     WHERE v.is_active
+      AND v.capacity IS NOT NULL
       AND v.capacity >= t.expected_footfall
       AND v.venue_id <> t.venue_id           -- an *alternate* venue
       AND v.venue_id NOT IN (SELECT busy.venue_id FROM busy)
@@ -126,6 +127,9 @@ CREATE OR REPLACE PROCEDURE submit_booking_request(
     p_end_time             TIMESTAMPTZ,
     p_resource_ids         INT[],
     p_quantities           INT[],
+    p_guest_name           VARCHAR(150) DEFAULT NULL,
+    p_guest_affiliation    VARCHAR(200) DEFAULT NULL,
+    p_talk_topic           VARCHAR(250) DEFAULT NULL,
     INOUT p_event_id       INT DEFAULT NULL,
     INOUT p_booking_id     INT DEFAULT NULL,
     INOUT p_booking_status VARCHAR(20) DEFAULT NULL
@@ -153,6 +157,10 @@ BEGIN
             v_caller_id, p_organizer_id;
     END IF;
 
+    IF p_department_id IS NULL THEN
+        RAISE EXCEPTION 'A department is required so every proposal can be routed to its HOD stage';
+    END IF;
+
     IF cardinality(COALESCE(p_resource_ids, '{}')) <> cardinality(COALESCE(p_quantities, '{}')) THEN
         RAISE EXCEPTION 'p_resource_ids and p_quantities must have the same length';
     END IF;
@@ -163,6 +171,28 @@ BEGIN
     VALUES (p_title, p_category, p_event_type, p_organizer_id, p_department_id,
             p_club_id, p_expected_footfall, 'PENDING_APPROVAL')
     RETURNING event_id INTO p_event_id;
+
+    IF p_event_type = 'GUEST_LECTURE' THEN
+        IF NOT EXISTS (
+            SELECT 1 FROM app_user AS u
+            JOIN role AS r ON r.role_id = u.role_id
+            WHERE u.user_id = v_caller_id
+              AND r.role_name IN ('FACULTY', 'HOD', 'ADMIN')
+              AND u.is_active
+        ) THEN
+            RAISE EXCEPTION 'Guest lectures may only be submitted by faculty, HOD, or admin accounts';
+        END IF;
+        IF NULLIF(btrim(p_guest_name), '') IS NULL
+           OR NULLIF(btrim(p_guest_affiliation), '') IS NULL
+           OR NULLIF(btrim(p_talk_topic), '') IS NULL THEN
+            RAISE EXCEPTION
+                'Guest lectures require guest name, affiliation, and talk topic';
+        END IF;
+        INSERT INTO guest_lecture_details (event_id, guest_name, guest_affiliation, talk_topic)
+        VALUES (p_event_id, btrim(p_guest_name), btrim(p_guest_affiliation), btrim(p_talk_topic));
+    ELSIF p_guest_name IS NOT NULL OR p_guest_affiliation IS NOT NULL OR p_talk_topic IS NOT NULL THEN
+        RAISE EXCEPTION 'Guest lecture details are only valid for GUEST_LECTURE events';
+    END IF;
 
     -- b. its booking
     INSERT INTO booking (event_id, venue_id, start_time, end_time)
@@ -202,5 +232,6 @@ $$;
 -- down here and granted to the application roles in rbac.sql.
 REVOKE EXECUTE ON PROCEDURE submit_booking_request(
     INT, VARCHAR, VARCHAR, VARCHAR, INT, INT, INT, INT,
-    TIMESTAMPTZ, TIMESTAMPTZ, INT[], INT[], INT, INT, VARCHAR
+    TIMESTAMPTZ, TIMESTAMPTZ, INT[], INT[], VARCHAR, VARCHAR, VARCHAR,
+    INT, INT, VARCHAR
 ) FROM PUBLIC;
