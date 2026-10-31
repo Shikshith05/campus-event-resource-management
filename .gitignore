@@ -9,3 +9,6 @@ Desktop.ini
 /app/.next/
 /app/*.tsbuildinfo
 /app/.env.local
+
+# Private campus staff import files; only public venue data belongs in Git.
+/data/pes/private/

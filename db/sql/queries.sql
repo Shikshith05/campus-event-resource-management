@@ -203,6 +203,7 @@ busy_venues AS (
 SELECT v.venue_id, v.name, v.capacity, v.capacity - q.footfall AS spare_seats
 FROM venue AS v, request AS q
 WHERE v.is_active
+  AND v.capacity IS NOT NULL
   AND v.capacity >= q.footfall
   AND v.venue_id NOT IN (SELECT venue_id FROM busy_venues)
 ORDER BY spare_seats, v.name;

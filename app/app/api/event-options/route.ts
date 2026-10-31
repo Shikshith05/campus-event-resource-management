@@ -11,7 +11,11 @@ export async function GET() {
   try {
     const options = await withUserTransaction(user, async client => {
       const departments = await client.query("SELECT department_id, code, name FROM department ORDER BY name");
-      const venues = await client.query("SELECT venue_id, name, venue_type, building, capacity FROM venue WHERE is_active ORDER BY name");
+      const venues = await client.query(
+        `SELECT venue_id, name, venue_type, venue_type_confirmed, building,
+                capacity, min_capacity, max_capacity
+         FROM venue WHERE is_active ORDER BY name`
+      );
       const resources = await client.query("SELECT resource_id, name, resource_type, total_quantity FROM resource WHERE is_active ORDER BY name");
       const clubs = await client.query(
         `SELECT c.club_id, c.name, c.department_id

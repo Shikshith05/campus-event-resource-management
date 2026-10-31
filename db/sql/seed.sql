@@ -1,8 +1,9 @@
 -- =====================================================================
 -- CERMS - sample data
 --
--- PLACEHOLDER: replace after campus survey
--- Names, capacities, quantities, people and dates below are made up.
+-- Sample identities, resources, events, dates, and legacy demo venues are
+-- placeholders. The ten PES RR venues below are supplied campus data; their
+-- capacity ranges are estimates and confirmed booking capacity stays NULL.
 -- Only the ROLE rows are real design data.
 --
 -- Run AFTER schema.sql:
@@ -17,7 +18,7 @@ BEGIN;
 
 TRUNCATE booking_status_history, booking_conflict_log, booking_resource, booking, event,
          event_venue_preference, guest_lecture_details, resource, venue,
-         club_member, club,
+         workflow_approver_assignment, club_member, club,
          app_user, role, department
 RESTART IDENTITY;
 
@@ -30,7 +31,8 @@ INSERT INTO role (role_id, role_name, hierarchy_level, description) VALUES
     (2, 'CLUB_COORDINATOR', 2, 'Leads a club; first approver for club events'),
     (3, 'FACULTY',          3, 'Faculty member / club faculty advisor'),
     (4, 'HOD',              4, 'Head of Department; approves department-level events'),
-    (5, 'ADMIN',            5, 'Admin office / Dean; final approval and overrides');
+    (5, 'ADMIN',            5, 'Admin office; manages system configuration'),
+    (6, 'WORKFLOW_APPROVER', 3, 'Can act only on workflow stages assigned to this account');
 
 
 -- ---------------------------------------------------------------------
@@ -91,14 +93,26 @@ INSERT INTO club_member (club_id, user_id, club_position, joined_on) VALUES
 
 -- ---------------------------------------------------------------------
 -- venue
--- PLACEHOLDER: replace after campus survey (names and capacities)
+-- Legacy demo venues remain for the sample bookings. The ten PES RR venues
+-- preserve the supplied ranges; no estimate is treated as a safe exact limit.
 -- ---------------------------------------------------------------------
-INSERT INTO venue (venue_id, name, venue_type, building, capacity, department_id) VALUES
-    (1, 'Auditorium 1',     'AUDITORIUM',   'Main Block',   500, NULL),
-    (2, 'Seminar Hall A',   'SEMINAR_HALL', 'Block A',      150, 1),
-    (3, 'Seminar Hall B',   'SEMINAR_HALL', 'Block B',      120, 2),
-    (4, 'Classroom 101',    'CLASSROOM',    'Block A',       60, 1),
-    (5, 'Open Air Theatre', 'OPEN_AIR',     'Central Lawn', 800, NULL);
+INSERT INTO venue (venue_id, name, venue_type, building, capacity, min_capacity, max_capacity,
+                   venue_type_confirmed, department_id) VALUES
+    (1, 'Auditorium 1',     'AUDITORIUM',   'Main Block',   500, 500, 500, TRUE, NULL),
+    (2, 'Seminar Hall A',   'SEMINAR_HALL', 'Block A',      150, 150, 150, TRUE, 1),
+    (3, 'Seminar Hall B',   'SEMINAR_HALL', 'Block B',      120, 120, 120, TRUE, 2),
+    (4, 'Classroom 101',    'CLASSROOM',    'Block A',       60,  60,  60, TRUE, 1),
+    (5, 'Open Air Theatre', 'OPEN_AIR',     'Central Lawn', 800, 800, 800, TRUE, NULL),
+    (6, 'Opera House', 'AUDITORIUM', 'GJBC', NULL, 1800, 2000, TRUE, NULL),
+    (7, 'MRD Auditorium', 'AUDITORIUM', 'MRD', NULL, 250, 300, TRUE, NULL),
+    (8, 'GJBC 1A Audi', 'AUDITORIUM', 'GJBC', NULL, 150, 200, TRUE, NULL),
+    (9, 'GJBC 1B Auditorium', 'AUDITORIUM', 'GJBC', NULL, 150, 200, TRUE, NULL),
+    (10, 'GJBC 2A Auditorium', 'AUDITORIUM', 'GJBC', NULL, 150, 200, TRUE, NULL),
+    (11, 'GJBC 2B Auditorium', 'AUDITORIUM', 'GJBC', NULL, 150, 200, TRUE, NULL),
+    (12, 'PESU 52', 'OTHER', 'GJBC', NULL, 150, 200, FALSE, NULL),
+    (13, '13th floor', 'OTHER', 'BE Block', NULL, 100, 150, FALSE, NULL),
+    (14, '3rd floor seminar hall', 'SEMINAR_HALL', 'BE Block', NULL, 100, 150, TRUE, NULL),
+    (15, '5th floor seminar hall', 'SEMINAR_HALL', 'BE Block', NULL, 100, 150, TRUE, NULL);
 
 
 -- ---------------------------------------------------------------------
@@ -122,11 +136,11 @@ INSERT INTO resource (resource_id, name, resource_type, total_quantity) VALUES
 -- ---------------------------------------------------------------------
 INSERT INTO event (event_id, title, description, category, event_type, organizer_id,
                    department_id, club_id, expected_footfall, status, created_at) VALUES
-    (1, 'Guest Lecture (placeholder topic)', 'Placeholder', 'ACADEMIC',   'GUEST_LECTURE', 5, 1, NULL, 120, 'APPROVED',         '2026-10-01 10:00+05:30'),
-    (2, 'ECE Technical Symposium',           'Placeholder', 'DEPARTMENT', 'SEMINAR',       6, 2, NULL, 300, 'PENDING_APPROVAL', '2026-10-10 10:00+05:30'),
-    (3, 'Coding Club Hackathon',             'Placeholder', 'CLUB',       'COMPETITION',   1, 1, 1,    100, 'PENDING_APPROVAL', '2026-10-05 09:00+05:30'),
-    (4, 'Robotics Workshop',                 'Placeholder', 'CLUB',       'WORKSHOP',      4, 2, 2,     50, 'APPROVED',         '2026-09-01 11:00+05:30'),
-    (5, 'Study Group Session',               'Placeholder', 'PERSONAL',   'OTHER',         1, NULL, NULL, 20, 'APPROVED',       '2026-09-18 12:00+05:30'),
+    (1, 'Guest Lecture (placeholder topic)', 'Placeholder', 'ACADEMIC',   'GUEST_LECTURE', 5, 1, NULL, 120, 'DRAFT',            '2026-10-01 10:00+05:30'),
+    (2, 'ECE Technical Symposium',           'Placeholder', 'DEPARTMENT', 'SEMINAR',       6, 2, NULL, 300, 'DRAFT',            '2026-10-10 10:00+05:30'),
+    (3, 'Coding Club Hackathon',             'Placeholder', 'CLUB',       'COMPETITION',   1, 1, 1,    100, 'DRAFT',            '2026-10-05 09:00+05:30'),
+    (4, 'Robotics Workshop',                 'Placeholder', 'CLUB',       'WORKSHOP',      4, 2, 2,     50, 'DRAFT',            '2026-09-01 11:00+05:30'),
+    (5, 'Study Group Session',               'Placeholder', 'PERSONAL',   'OTHER',         1, 1,    NULL, 20, 'DRAFT',            '2026-09-18 12:00+05:30'),
     (6, 'Coding Club Meetup',                'Placeholder', 'CLUB',       'CLUB_MEET',     3, 1, 1,     40, 'CANCELLED',        '2026-09-10 10:00+05:30');
 
 
@@ -211,21 +225,15 @@ INSERT INTO booking_conflict_log (conflict_id, winning_booking_id, losing_bookin
 
 
 -- ---------------------------------------------------------------------
--- Approval-workflow demo requests
--- PLACEHOLDER: replace after campus survey
--- Two Robotics Club requests by Student Two (member of club 2), still
--- going through approval, so that after a fresh reset every approver
--- role has something waiting (see db/mongo/workflow_instances.json):
---   event 7 -> stage 1, Club Coordinator (Coordinator Two, user 4)
---   event 8 -> stage 2, Faculty Advisor  (Faculty Two, user 6)
---   event 3 -> stage 3, HOD              (HOD One, user 7)
---   event 2 -> stage 2, Admin            (Admin One, user 9)
--- Their venues are already CONFIRMED, as submit_booking_request does.
+-- Placeholder requests demonstrating event types. No central or faculty
+-- workflow mappings are seeded. These remain DRAFT until real assignment
+-- data is configured; no event should claim PENDING_APPROVAL without a
+-- corresponding MongoDB workflow instance.
 -- ---------------------------------------------------------------------
 INSERT INTO event (event_id, title, description, category, event_type, organizer_id,
                    department_id, club_id, expected_footfall, status, created_at) VALUES
-    (7, 'Robotics Line-Follower Contest', 'Placeholder', 'CLUB', 'COMPETITION', 2, 2, 2, 60, 'PENDING_APPROVAL', '2026-10-20 10:00+05:30'),
-    (8, 'Robotics Workshop Series',       'Placeholder', 'CLUB', 'WORKSHOP',    2, 2, 2, 40, 'PENDING_APPROVAL', '2026-10-22 10:00+05:30');
+    (7, 'Robotics Line-Follower Contest', 'Placeholder', 'CLUB', 'COMPETITION', 2, 2, 2, 60, 'DRAFT', '2026-10-20 10:00+05:30'),
+    (8, 'Robotics Workshop Series',       'Placeholder', 'CLUB', 'WORKSHOP',    2, 2, 2, 40, 'DRAFT', '2026-10-22 10:00+05:30');
 
 INSERT INTO event_venue_preference (event_id, venue_id, preference_order) VALUES
     (7, 3, 1),

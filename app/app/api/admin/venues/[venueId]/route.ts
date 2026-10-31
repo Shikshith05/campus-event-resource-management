@@ -9,17 +9,27 @@ import { ADMIN_ROLES } from "../../../../../lib/session";
 const updateSchema = z.object({
   name: z.string().trim().min(2).max(100),
   venue_type: z.enum(["AUDITORIUM", "SEMINAR_HALL", "CLASSROOM", "LAB", "OPEN_AIR", "OTHER"]),
+  venue_type_confirmed: z.boolean(),
   building: z.string().trim().max(100).nullable(),
-  capacity: z.number().int().positive(),
+  capacity: z.number().int().positive().nullable(),
+  min_capacity: z.number().int().positive().nullable(),
+  max_capacity: z.number().int().positive().nullable(),
   department_id: z.number().int().positive().nullable(),
   is_active: z.boolean()
-}).partial().refine(body => Object.values(body).some(value => value !== undefined), {
-  message: "Provide at least one field to update"
-});
+}).partial()
+  .refine(body => Object.values(body).some(value => value !== undefined), {
+    message: "Provide at least one field to update"
+  })
+  .refine(body =>
+    (body.min_capacity === undefined && body.max_capacity === undefined)
+    || (body.min_capacity === null && body.max_capacity === null)
+    || (body.min_capacity != null && body.max_capacity != null && body.max_capacity >= body.min_capacity),
+  { message: "Enter both ends of the capacity range, with the maximum at least the minimum" });
 
 // Fixed list of updatable columns: only these names are ever placed in the
 // SQL text; the values themselves are always bound parameters.
-const COLUMNS = ["name", "venue_type", "building", "capacity", "department_id", "is_active"] as const;
+const COLUMNS = ["name", "venue_type", "venue_type_confirmed", "building", "capacity",
+  "min_capacity", "max_capacity", "department_id", "is_active"] as const;
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ venueId: string }> }) {
   const { user, response } = await requireUser(ADMIN_ROLES);
@@ -49,9 +59,10 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ve
            WHERE b.venue_id = $1 AND b.status = 'CONFIRMED'`,
           [venueId]
         );
-        if (capacityCheck?.max_footfall && newCapacity < capacityCheck.max_footfall) {
+        if (capacityCheck?.max_footfall != null
+            && (newCapacity == null || newCapacity < capacityCheck.max_footfall)) {
           throw Object.assign(
-            new Error(`Capacity cannot be set below ${capacityCheck.max_footfall}; that venue has a confirmed booking for that many people.`),
+            new Error(`Capacity cannot be unset or set below ${capacityCheck.max_footfall}; that venue has a confirmed booking for that many people.`),
             { code: "P0001" }
           );
         }
@@ -61,7 +72,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ve
       const { rows } = await client.query(
         `UPDATE venue SET ${assignments}
          WHERE venue_id = $1
-         RETURNING venue_id, name, venue_type, building, capacity, department_id, is_active`,
+         RETURNING venue_id, name, venue_type, venue_type_confirmed, building,
+                   capacity, min_capacity, max_capacity, department_id, is_active`,
         [venueId, ...fields.map(column => changes[column])]
       );
       return rows;

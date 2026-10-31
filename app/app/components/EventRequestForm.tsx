@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
-type Venue = { venue_id: number; name: string; venue_type: string; building: string | null; capacity: number };
+type Venue = {
+  venue_id: number;
+  name: string;
+  venue_type: string;
+  venue_type_confirmed: boolean;
+  building: string | null;
+  capacity: number | null;
+  min_capacity: number | null;
+  max_capacity: number | null;
+};
 type Resource = { resource_id: number; name: string; resource_type: string; total_quantity: number };
 type EventOptions = {
   departments: { department_id: number; code: string; name: string }[];
@@ -15,7 +24,7 @@ type Alternate = { venue_id: number; venue_name: string; capacity: number; spare
 type ApiMessage = { message?: string; status?: string; event_id?: number; event_status?: string; workflow?: { stages: { stage_no: number; name: string; status: string }[] }; alternatives?: Alternate[] };
 
 const categories = ["ACADEMIC", "DEPARTMENT", "CLUB", "PERSONAL"] as const;
-const eventTypes = ["WORKSHOP", "SEMINAR", "TECH_FEST", "CULTURAL", "CLUB_MEET", "ORIENTATION", "COMPETITION", "SPORTS", "OTHER"] as const;
+const eventTypes = ["HACKATHON", "WORKSHOP", "SEMINAR", "TECH_FEST", "CULTURAL", "CLUB_MEET", "ORIENTATION", "COMPETITION", "SPORTS", "OTHER"] as const;
 type EventType = (typeof eventTypes)[number] | "GUEST_LECTURE";
 
 // canRequestGuestLecture comes from the server (faculty, HOD, admin). For
@@ -57,7 +66,7 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
     () => options?.venues.find(venue => venue.venue_id === Number(venueId)),
     [options, venueId]
   );
-  const needsDepartment = category !== "PERSONAL";
+  const needsDepartment = true;
   const isGuestLecture = eventType === "GUEST_LECTURE";
   const typeOptions: EventType[] = canRequestGuestLecture ? ["GUEST_LECTURE", ...eventTypes] : [...eventTypes];
 
@@ -165,12 +174,12 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
             }}>
               {typeOptions.map(item => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}
             </select>
-            {isGuestLecture && <span className="field-help">Approved by your HOD, then the admin office (gate pass).</span>}
+            {isGuestLecture && <span className="field-help">Guest lectures follow the same four approval stages as other proposals.</span>}
           </div>
           {isGuestLecture && <>
             <div className="field">
               <label htmlFor="guest-name">Guest speaker</label>
-              <input className="control" id="guest-name" required minLength={2} maxLength={150} value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="e.g. Dr. A. Rao" />
+              <input className="control" id="guest-name" required minLength={2} maxLength={150} value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="Guest name" />
             </div>
             <div className="field">
               <label htmlFor="guest-affiliation">Guest affiliation</label>
@@ -207,15 +216,25 @@ export default function EventRequestForm({ canRequestGuestLecture = false }: { c
           )}
           <div className="field">
             <label htmlFor="footfall">Expected attendance</label>
-            <input className="control" id="footfall" type="number" min={1} max={selectedVenue?.capacity} required value={footfall} onChange={e => setFootfall(e.target.value)} placeholder="People expected" />
+            <input className="control" id="footfall" type="number" min={1} max={selectedVenue?.capacity ?? undefined} required value={footfall} onChange={e => setFootfall(e.target.value)} placeholder="People expected" />
           </div>
           <div className="field">
             <label htmlFor="venue">Preferred venue</label>
             <select className="control" id="venue" required value={venueId} onChange={e => setVenueId(e.target.value)}>
               <option value="">Select a venue</option>
-              {options.venues.map(venue => <option key={venue.venue_id} value={venue.venue_id}>{venue.name} · {venue.capacity} seats</option>)}
+              {options.venues.map(venue => <option key={venue.venue_id} value={venue.venue_id} disabled={venue.capacity === null}>
+                {venue.name} · {venue.capacity !== null
+                  ? `${venue.capacity} confirmed seats`
+                  : `${venue.min_capacity ?? "?"}–${venue.max_capacity ?? "?"} estimated; confirmation required`}
+              </option>)}
             </select>
-            {selectedVenue && <span className="field-help">{selectedVenue.building || selectedVenue.venue_type} · capacity {selectedVenue.capacity}</span>}
+            {selectedVenue && <span className="field-help">
+              {selectedVenue.building || selectedVenue.venue_type}
+              {selectedVenue.venue_type_confirmed ? "" : " · venue type pending confirmation"}
+              {selectedVenue.capacity !== null
+                ? ` · confirmed booking limit ${selectedVenue.capacity}`
+                : ` · estimated range ${selectedVenue.min_capacity ?? "?"}–${selectedVenue.max_capacity ?? "?"}; confirm capacity before booking`}
+            </span>}
           </div>
           <div className="field">
             <label htmlFor="start-time">Starts</label>

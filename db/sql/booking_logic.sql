@@ -259,6 +259,13 @@ BEGIN
         RAISE EXCEPTION 'Booking % does not exist', p_booking_id;
     END IF;
 
+    IF booking_record.venue_capacity IS NULL THEN
+        RAISE EXCEPTION
+            'Venue % has an estimated capacity range but no confirmed booking capacity; confirm the venue capacity before booking',
+            booking_record.venue_id
+            USING ERRCODE = 'check_violation';
+    END IF;
+
     IF booking_record.expected_footfall > booking_record.venue_capacity THEN
         RAISE EXCEPTION
             'Booking % requires capacity %, but venue % only holds %',

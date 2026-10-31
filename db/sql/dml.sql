@@ -38,6 +38,7 @@ SELECT :openmic_event_id,
        ROW_NUMBER() OVER (ORDER BY v.capacity, v.venue_id)
 FROM venue AS v
 WHERE v.is_active
+  AND v.capacity IS NOT NULL
   AND v.capacity >= 80;
 
 -- INSERT the booking (PENDING by default). Exercises chk_booking_time,
@@ -135,8 +136,8 @@ SELECT booking_id, event_id, status FROM booking WHERE event_id = :openmic_event
 --    booking resources and venue preferences (ON DELETE CASCADE).
 -- ---------------------------------------------------------------------
 
-INSERT INTO event (title, category, event_type, organizer_id, expected_footfall, status)
-VALUES ('Draft Study Session', 'PERSONAL', 'OTHER', 1, 15, 'DRAFT')
+INSERT INTO event (title, category, event_type, organizer_id, department_id, expected_footfall, status)
+VALUES ('Draft Study Session', 'PERSONAL', 'OTHER', 1, 2, 15, 'DRAFT')
 RETURNING event_id AS draft_event_id \gset
 
 INSERT INTO event_venue_preference (event_id, venue_id, preference_order)
@@ -221,7 +222,7 @@ CALL submit_booking_request(
 -- 8b. A request that clashes with confirmed booking 1 (Seminar Hall A,
 --     12 Nov 10:00-12:00): it is REJECTED and a NOTICE lists alternates.
 CALL submit_booking_request(
-    1, 'Study Group Revision', 'PERSONAL', 'OTHER', NULL, NULL, 20,
+    1, 'Study Group Revision', 'PERSONAL', 'OTHER', 1, NULL, 20,
     2, '2026-11-12 10:30+05:30', '2026-11-12 11:30+05:30',
     NULL, NULL                                  -- no resources
 );

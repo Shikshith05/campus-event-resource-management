@@ -1,3 +1,11 @@
-name,venue_type,building,capacity,managing_department_code
-EXAMPLE Seminar Hall X,SEMINAR_HALL,EXAMPLE Block X,90,EXCIV
-EXAMPLE Open Ground,OPEN_AIR,,1500,
+name,venue_type,building,min_capacity,max_capacity,venue_type_confirmed
+Opera House,AUDITORIUM,GJBC,1800,2000,true
+MRD Auditorium,AUDITORIUM,MRD,250,300,true
+GJBC 1A Audi,AUDITORIUM,GJBC,150,200,true
+GJBC 1B Auditorium,AUDITORIUM,GJBC,150,200,true
+GJBC 2A Auditorium,AUDITORIUM,GJBC,150,200,true
+GJBC 2B Auditorium,AUDITORIUM,GJBC,150,200,true
+PESU 52,OTHER,GJBC,150,200,false
+13th floor,OTHER,BE Block,100,150,false
+3rd floor seminar hall,SEMINAR_HALL,BE Block,100,150,true
+5th floor seminar hall,SEMINAR_HALL,BE Block,100,150,true

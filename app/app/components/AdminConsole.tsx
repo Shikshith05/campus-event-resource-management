@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 
 type Department = { department_id: number; code: string; name: string };
-type Venue = { venue_id: number; name: string; venue_type: string; building: string | null; capacity: number; department_id: number | null; is_active: boolean };
+type Venue = {
+  venue_id: number; name: string; venue_type: string; venue_type_confirmed: boolean;
+  building: string | null; capacity: number | null; min_capacity: number | null;
+  max_capacity: number | null; department_id: number | null; is_active: boolean;
+};
 type Resource = { resource_id: number; name: string; resource_type: string; total_quantity: number; is_active: boolean };
 type VenueDraft = Omit<Venue, "venue_id">;
 type ResourceDraft = Omit<Resource, "resource_id">;
@@ -27,7 +31,7 @@ export default function AdminConsole() {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [venueDrafts, setVenueDrafts] = useState<Record<number, VenueDraft>>({});
   const [resourceDrafts, setResourceDrafts] = useState<Record<number, ResourceDraft>>({});
-  const [newVenue, setNewVenue] = useState<VenueDraft>({ name: "", venue_type: "CLASSROOM", building: "", capacity: 60, department_id: null, is_active: true });
+  const [newVenue, setNewVenue] = useState<VenueDraft>({ name: "", venue_type: "CLASSROOM", venue_type_confirmed: true, building: "", capacity: 60, min_capacity: null, max_capacity: null, department_id: null, is_active: true });
   const [newResource, setNewResource] = useState<ResourceDraft>({ name: "", resource_type: "AV", total_quantity: 1, is_active: true });
   const [tab, setTab] = useState<"venues" | "resources">("venues");
   const [loading, setLoading] = useState(true);
@@ -46,7 +50,8 @@ export default function AdminConsole() {
     setResources(resourceRows);
     setDepartments(venueData.departments as Department[]);
     setVenueDrafts(Object.fromEntries(venueRows.map(row => [row.venue_id, {
-      name: row.name, venue_type: row.venue_type, building: row.building, capacity: row.capacity,
+      name: row.name, venue_type: row.venue_type, venue_type_confirmed: row.venue_type_confirmed,
+      building: row.building, capacity: row.capacity, min_capacity: row.min_capacity, max_capacity: row.max_capacity,
       department_id: row.department_id, is_active: row.is_active
     }])));
     setResourceDrafts(Object.fromEntries(resourceRows.map(row => [row.resource_id, {
@@ -75,8 +80,8 @@ export default function AdminConsole() {
       const data = await sendJson("/api/admin/venues", "POST", { ...newVenue, building: newVenue.building || null });
       const row = data.venue as Venue;
       setVenues(current => [...current, row].sort((a, b) => a.name.localeCompare(b.name)));
-      setVenueDrafts(current => ({ ...current, [row.venue_id]: { name: row.name, venue_type: row.venue_type, building: row.building, capacity: row.capacity, department_id: row.department_id, is_active: row.is_active } }));
-      setNewVenue({ name: "", venue_type: "CLASSROOM", building: "", capacity: 60, department_id: null, is_active: true });
+      setVenueDrafts(current => ({ ...current, [row.venue_id]: { name: row.name, venue_type: row.venue_type, venue_type_confirmed: row.venue_type_confirmed, building: row.building, capacity: row.capacity, min_capacity: row.min_capacity, max_capacity: row.max_capacity, department_id: row.department_id, is_active: row.is_active } }));
+      setNewVenue({ name: "", venue_type: "CLASSROOM", venue_type_confirmed: true, building: "", capacity: 60, min_capacity: null, max_capacity: null, department_id: null, is_active: true });
       setNotice(`${row.name} was added.`);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "Unable to add venue."); }
     finally { setBusy(""); }
@@ -123,12 +128,15 @@ export default function AdminConsole() {
 
       {tab === "venues" ? <>
         <section className="panel panel-pad">
-          <h2 className="panel-title">Add a venue</h2><p className="panel-copy">New venues are available immediately in event requests.</p>
+          <h2 className="panel-title">Add a venue</h2><p className="panel-copy">An estimated range is displayed to requesters, but booking stays disabled until a confirmed capacity is entered.</p>
           <form className="field-grid" onSubmit={createVenue}>
             <div className="field"><label htmlFor="new-venue-name">Name</label><input id="new-venue-name" className="control" required maxLength={100} value={newVenue.name} onChange={e => setNewVenue(current => ({ ...current, name: e.target.value }))} /></div>
             <div className="field"><label htmlFor="new-venue-type">Venue type</label><select id="new-venue-type" className="control" value={newVenue.venue_type} onChange={e => setNewVenue(current => ({ ...current, venue_type: e.target.value }))}>{venueTypes.map(type => <option key={type}>{type}</option>)}</select></div>
+            <div className="field"><label htmlFor="new-venue-type-confirmed">Type status</label><select id="new-venue-type-confirmed" className="control" value={String(newVenue.venue_type_confirmed)} onChange={e => setNewVenue(current => ({ ...current, venue_type_confirmed: e.target.value === "true" }))}><option value="true">Confirmed</option><option value="false">Pending confirmation</option></select></div>
             <div className="field"><label htmlFor="new-venue-building">Building / location</label><input id="new-venue-building" className="control" maxLength={100} value={newVenue.building ?? ""} onChange={e => setNewVenue(current => ({ ...current, building: e.target.value }))} /></div>
-            <div className="field"><label htmlFor="new-venue-capacity">Capacity</label><input id="new-venue-capacity" className="control" type="number" min={1} required value={newVenue.capacity} onChange={e => setNewVenue(current => ({ ...current, capacity: Number(e.target.value) }))} /></div>
+            <div className="field"><label htmlFor="new-venue-capacity">Confirmed capacity</label><input id="new-venue-capacity" className="control" type="number" min={1} value={newVenue.capacity ?? ""} onChange={e => setNewVenue(current => ({ ...current, capacity: e.target.value === "" ? null : Number(e.target.value) }))} /></div>
+            <div className="field"><label htmlFor="new-venue-min">Estimated minimum</label><input id="new-venue-min" className="control" type="number" min={1} value={newVenue.min_capacity ?? ""} onChange={e => setNewVenue(current => ({ ...current, min_capacity: e.target.value === "" ? null : Number(e.target.value) }))} /></div>
+            <div className="field"><label htmlFor="new-venue-max">Estimated maximum</label><input id="new-venue-max" className="control" type="number" min={1} value={newVenue.max_capacity ?? ""} onChange={e => setNewVenue(current => ({ ...current, max_capacity: e.target.value === "" ? null : Number(e.target.value) }))} /></div>
             <div className="field"><label htmlFor="new-venue-dept">Managing department</label><select id="new-venue-dept" className="control" value={newVenue.department_id ?? ""} onChange={e => setNewVenue(current => ({ ...current, department_id: Number(e.target.value) || null }))}><option value="">Central / campus-wide</option>{departments.map(department => <option value={department.department_id} key={department.department_id}>{department.code}</option>)}</select></div>
             <div className="field" style={{ justifyContent: "end" }}><button className="btn" type="submit" disabled={busy !== ""}>{busy === "venue-new" ? "Adding…" : "Add venue"}</button></div>
           </form>
@@ -136,15 +144,17 @@ export default function AdminConsole() {
         <section className="panel panel-pad">
           <h2 className="panel-title">Manage venues</h2><p className="panel-copy">Update details, adjust capacity, or retire a venue.</p>
           {venues.length ? <div className="table-wrap"><table>
-            <thead><tr><th>Name</th><th>Type</th><th>Building</th><th>Department</th><th>Capacity</th><th>Availability</th><th /></tr></thead>
+            <thead><tr><th>Name</th><th>Type</th><th>Type status</th><th>Building</th><th>Department</th><th>Confirmed capacity</th><th>Estimated range</th><th>Availability</th><th /></tr></thead>
             <tbody>{venues.map(row => {
               const draft = venueDrafts[row.venue_id] ?? row;
               return <tr key={row.venue_id}>
                 <td><input className="control" aria-label={`${row.name} name`} value={draft.name} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, name: e.target.value } }))} /></td>
                 <td><select className="control" aria-label={`${row.name} type`} value={draft.venue_type} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, venue_type: e.target.value } }))}>{venueTypes.map(type => <option key={type}>{type}</option>)}</select></td>
+                <td><select className="control" aria-label={`${row.name} type confirmation`} value={String(draft.venue_type_confirmed)} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, venue_type_confirmed: e.target.value === "true" } }))}><option value="true">Confirmed</option><option value="false">Pending</option></select></td>
                 <td><input className="control" aria-label={`${row.name} building`} value={draft.building ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, building: e.target.value || null } }))} /></td>
                 <td><select className="control" aria-label={`${row.name} department`} value={draft.department_id ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, department_id: Number(e.target.value) || null } }))}><option value="">Central</option>{departments.map(department => <option value={department.department_id} key={department.department_id}>{department.code}</option>)}</select></td>
-                <td><input className="control" aria-label={`${row.name} capacity`} type="number" min={1} value={draft.capacity} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, capacity: Number(e.target.value) } }))} /></td>
+                <td><input className="control" aria-label={`${row.name} confirmed capacity`} type="number" min={1} value={draft.capacity ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, capacity: e.target.value === "" ? null : Number(e.target.value) } }))} /></td>
+                <td><div className="grid two"><input className="control" aria-label={`${row.name} estimated minimum`} type="number" min={1} value={draft.min_capacity ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, min_capacity: e.target.value === "" ? null : Number(e.target.value) } }))} /><input className="control" aria-label={`${row.name} estimated maximum`} type="number" min={1} value={draft.max_capacity ?? ""} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, max_capacity: e.target.value === "" ? null : Number(e.target.value) } }))} /></div></td>
                 <td><select className="control" aria-label={`${row.name} status`} value={String(draft.is_active)} onChange={e => setVenueDrafts(current => ({ ...current, [row.venue_id]: { ...draft, is_active: e.target.value === "true" } }))}><option value="true">Active</option><option value="false">Retired</option></select></td>
                 <td><button className="btn small" type="button" disabled={busy !== ""} onClick={() => void saveVenue(row.venue_id)}>{busy === `venue-${row.venue_id}` ? "Saving…" : "Save"}</button></td>
               </tr>;
