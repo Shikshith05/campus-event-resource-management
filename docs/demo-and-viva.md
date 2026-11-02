@@ -12,7 +12,7 @@ Run from the repository root in the WSL terminal. Keep this terminal open so Pos
 psql -h localhost -p 5432 -U postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS cerms WITH (FORCE)"
 psql -h localhost -p 5432 -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE cerms"
 for sqlFile in schema views booking_logic analytics procedures seed rbac workflow guest_lecture; do
-  psql -h localhost -p 5432 -U postgres -d cerms -v ON_ERROR_STOP=1 -q -f "db/sql/$sqlFile.sql" || break
+  psql -h localhost -p 5432 -U postgres -d cerms -v ON_ERROR_STOP=1 -q -f "db/sql/$sqlFile.sql" || exit 1
 done
 psql -h localhost -p 5432 -U postgres -d cerms -c "SELECT event_id, status FROM event WHERE event_id IN (7, 8) ORDER BY event_id"
 ```
@@ -67,7 +67,7 @@ Set `DATABASE_URL` in `app/.env.local` to port **5432** when using WSL PostgreSQ
 |---|---|---|---|---|
 | 0:00 | ER images, PES venue CSV, README | Show the ER images, stack, and the supplied PES venue list. Point out that venues with unconfirmed capacities are visible but unavailable for booking. | “PostgreSQL protects bookings and event facts; MongoDB stores flexible approval chains. Estimated capacity is never treated as a confirmed safe limit.” | 1, 2, 5 |
 | 0:40 | **Student Two**, `/events/new` | Submit *Robotics Expo Day*: CLUB, TECH FEST, Robotics Club, ECE, 120 people, Open Air Theatre, a date in December 2026, PA System 1. | “One `CALL submit_booking_request` inserts the event, booking, and equipment in one transaction, then runs the priority engine.” | 10, 11, 8 |
-| 1:20 | Student Two, `/events/new` | Submit a second request for Seminar Hall A on **12 Nov 2026, 10:30–11:30**, 40 people. The clash shows alternates. Choose **Classroom 101** and submit again. | “The confirmed booking wins. The exclusion constraint prevents double-booking; the losing request gets alternatives from `suggest_alternate_venues`, which uses a CTE.” | 8, 3 |
+| 1:20 | Student Two, `/events/new` | Submit a **PERSONAL / OTHER** request for ECE: Seminar Hall A on **12 Nov 2026, 10:30–11:30**, 40 people. The clash shows alternates. Choose **Classroom 101** and submit again. | “The confirmed booking wins. The exclusion constraint prevents double-booking; the losing request gets alternatives from `suggest_alternate_venues`, which uses a CTE.” | 8, 3 |
 | 2:00 | **Faculty Two** → **HOD ECE**, `/approvals` | Approve *Robotics Expo Day* at stages 1 and 2. Point at the priority score. | “The faculty advisor is stage one; the HOD is stage two. MongoDB identifies the current turn, and PostgreSQL checks the account’s scoped assignment.” | 9, 12 |
 | 2:40 | **Demo Dean** → **Demo Vice Chancellor**, `/approvals` | Approve stages 3 and 4. Optionally open `/approvals` as Student Coordinator Two and Admin to show their read-only inbox access. | “The Dean and Vice Chancellor use limited workflow approver accounts. Only the assigned account can decide the current stage; the last approval completes the event.” | 11, 12 |
 | 3:00 | Student Two, `/events` | Open *Robotics Expo Day* and show its approval timeline. | “The timeline combines the MongoDB workflow and audit trail with the public stage designations.” | 10, 9 |
@@ -138,7 +138,53 @@ npm run build
 
 The SQL upgrade and venue import commands are in [real-data-guide.md](real-data-guide.md). Use a dedicated disposable database for database integration checks.
 
-## Likely viva questions
+## 4. Restored database and application questions
+
+### Design and normalization
+
+1. **Is the schema in 3NF? How do you know?** Yes, all 15 tables are in 3NF and BCNF. Each determinant is a primary or unique key. Derived values such as cancellation counts, free equipment, and a booking's requester are computed rather than stored (`docs/schema-explanation.md`).
+2. **Why the bridge tables `club_member` and `booking_resource`?** Users and clubs, and bookings and resources, are many-to-many relationships. A bridge table stores one row per pair and can hold attributes about that pair, such as club position or resource quantity.
+3. **Why use `is_active` instead of deleting a user or venue?** Events and bookings keep references to those records. Retiring a record preserves history and avoids breaking foreign-key references.
+
+### Constraints and triggers
+
+4. **How is double-booking prevented?** A GiST exclusion constraint combines venue equality with overlapping time ranges for confirmed bookings. PostgreSQL rejects overlapping confirmed reservations, including concurrent requests.
+5. **Why do some rules need triggers instead of `CHECK` constraints?** A `CHECK` can inspect one row. Rules such as capacity versus footfall or whether a club advisor has a faculty role need to inspect other tables, so the project uses triggers in `db/sql/booking_logic.sql`.
+6. **What is the difference between a BEFORE and AFTER trigger here?** BEFORE triggers validate an event before saving it, such as `trg_validate_event_submission`. AFTER triggers respond to a successful change: `trg_cancel_event_bookings` cancels related bookings and `trg_log_booking_status` writes the audit row.
+
+### Queries
+
+7. **What is the difference between a nested and correlated subquery?** A nested subquery can run on its own (B1 filters with an `IN (SELECT ...)`). A correlated subquery refers to the outer row, such as C1 comparing penalties for users with the same role.
+8. **How does a recursive CTE stop?** E1 starts at one day and adds days until its counter reaches 14. E2 climbs the role hierarchy until there is no next role level.
+
+### Procedure, function, and CTE
+
+9. **Why is `submit_booking_request` a procedure rather than a function?** It performs a transaction-style action: inserts event, booking, and resource rows and runs conflict resolution. If a step fails, its exception block undoes the work and raises a clear error. A function returns a value for use in a query.
+10. **How does the priority score work?** Category weight plus role level multiplied by five, plus half a point per day booked in advance (capped at 15), minus five points per cancellation or no-show in the last 180 days. Earlier requests win ties (`calculate_booking_priority`).
+
+### MongoDB
+
+11. **Why use MongoDB for workflows?** Workflow documents can hold changing stage lists and event-specific fields while PostgreSQL keeps the facts and booking constraints that need relational integrity.
+12. **Why copy template stages into each workflow instance?** Changing a template must not alter approvals already in progress. Each instance stores its stage copy and `template_version`.
+13. **Show an update operator that works with arrays.** The positional `$` in `stages.$.status` updates the stage matched by `$elemMatch` in the filter (`db/mongo/workflow_rud.js`).
+
+### RBAC and row-level security
+
+14. **What is the difference between a GRANT and row-level security?** A GRANT controls which tables or columns a role may use. RLS controls which rows it may see or change. A student can query `event`, while the policy limits results to their own events.
+15. **How does PostgreSQL know the logged-in user when the app connects as `cerms_app`?** Each request begins a transaction, sets the database role, and sets `app.current_user_id` locally. Policies read that setting, which is cleared at commit so pooled connections do not retain another user's identity.
+16. **Why use `SECURITY DEFINER` functions, and how are they protected?** Some workflow checks need data the caller cannot read directly. These functions perform narrow operations, check the caller, revoke execution from `PUBLIC`, and set a fixed `search_path`.
+
+### Two-database consistency
+
+17. **What happens if MongoDB fails during submission?** PostgreSQL has already stored the event and booking, so the app compensates by returning the event to DRAFT and the booking to PENDING, freeing the venue.
+18. **How do approval decisions keep PostgreSQL and MongoDB aligned?** For a final approval or rejection, PostgreSQL checks the assignment inside an open transaction, MongoDB atomically updates the current stage, and PostgreSQL commits. If MongoDB fails, PostgreSQL rolls back. MongoDB's update filter prevents two simultaneous clicks from both succeeding.
+
+### App and authentication
+
+19. **How are passwords and sessions protected?** Passwords are bcrypt hashes. Failed email and password lookups return the same 401 response, and a dummy hash comparison reduces timing differences. The httpOnly, SameSite=Lax session cookie is HMAC-signed, so changing its role invalidates it.
+20. **What happens if the interface accidentally shows another student's request?** The API reads through PostgreSQL as the logged-in role and user, so RLS still limits access. A request for an invisible event returns no data; the database is the last line of defense.
+
+## 5. Current workflow and real-data viva questions
 
 1. **Why keep estimated and confirmed venue capacity separate?** The supplied ranges are useful to display, but neither endpoint is an authorized safe booking limit. `capacity` stays NULL until confirmation; booking validation rejects NULL and values above the confirmed limit.
 2. **Why does every event need a department?** Every event type has an HOD stage, so a department is needed to route that approval. This is enforced by the form, procedure, and database constraint for new events.

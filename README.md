@@ -76,9 +76,10 @@ The MongoDB image includes `mongosh`; the script and JSON data are mounted in th
 
 ```sh
 docker compose exec -T mongodb mongosh "mongodb://localhost:27017/cerms" /db/mongo/load.js
+docker compose exec -T mongodb mongosh "mongodb://localhost:27017/cerms" /db/mongo/seed_demo_workflows.js
 ```
 
-This upserts the managed workflow templates and creates indexes. It preserves existing workflow instances, audit history, and notifications. The repository does not seed central approver accounts or mappings.
+The first command upserts managed templates and indexes. The second adds two pending workflows for the disposable local sample requests and preserves any existing workflow with the same event ID. `db/sql/seed.sql` includes fictional approver accounts and mappings for local demos; never use these accounts or mappings for real campus stages.
 
 ### 3. Configure the app
 
@@ -169,7 +170,7 @@ MONGODB_URI=mongodb://localhost:27017/cerms
 SESSION_SECRET=replace-with-a-long-random-development-secret
 ```
 
-Copy this file to `app/.env.local` and replace `SESSION_SECRET` with a unique random value of at least 32 characters. `rbac.sql` creates `cerms_app` with the development password shown in the example. Never use these development credentials on a shared or public deployment.
+Copy this file to `app/.env.local` and replace `SESSION_SECRET` with a unique random value of at least 32 characters. The example uses port 5433 for Docker Compose; change it to 5432 when the app connects to WSL PostgreSQL. `rbac.sql` creates `cerms_app` with the development password shown in the example. Never use these development credentials on a shared or public deployment.
 
 ## Logins
 
@@ -185,9 +186,14 @@ All seeded accounts use the development-only password **`password123`**.
 | `faculty.two@campus.example` | Faculty |
 | `hod.cse@campus.example` | HOD |
 | `hod.ece@campus.example` | HOD |
+| `hod.aiml.demo@campus.example` | Demo HOD (AIML) |
+| `hod.eee.demo@campus.example` | Demo HOD (EEE) |
+| `hod.me.demo@campus.example` | Demo HOD (ME) |
+| `dean.demo@campus.example` | Fictional demo Dean |
+| `vc.demo@campus.example` | Fictional demo Vice Chancellor |
 | `admin.one@campus.example` | Admin |
 
-Sample accounts are development fixtures only. They have no workflow approval assignments. Do not assign them to real production stages; provide actual account mappings through the protected setup process in [docs/real-data-guide.md](docs/real-data-guide.md).
+Sample accounts and workflow mappings are fictional development fixtures. Do not assign them to real campus stages; provide actual account mappings through the protected setup process in [docs/real-data-guide.md](docs/real-data-guide.md).
 
 ## Pages and access
 
@@ -198,11 +204,11 @@ Sample accounts are development fixtures only. They have no workflow approval as
 | `/events/new` | All signed-in users |
 | `/events` | All signed-in users; visible rows depend on the account's database permissions |
 | `/availability` | All signed-in users |
-| `/approvals` | Faculty/HOD assigned to a stage and workflow-only central approvers |
+| `/approvals` | Faculty/HOD and workflow-only approvers; Admin and student Club Coordinator accounts can view it read-only |
 | `/analytics` | Faculty, HOD, Admin |
 | `/admin` | Admin |
 
-Every proposal requires a department and follows the same four stages: Club Coordinator (faculty advisor for club events), HOD, Dean of Student Affairs, then Vice Chancellor. Guest Lecture is offered only to Faculty, HOD, and Admin accounts and retains its guest name, affiliation, and talk topic fields. Submission is blocked until all four distinct approver assignments exist. The API reference is in [docs/api.md](docs/api.md).
+Every proposal requires a department and follows the same four stages: Club Coordinator (faculty advisor for club events), HOD, Dean of Student Affairs, then Vice Chancellor. Guest Lecture is offered only to Faculty, HOD, and Admin accounts and retains its guest name, affiliation, and talk topic fields. The local seed supplies fictional assignments across every seeded department; other environments must have four distinct approved mappings before submission. The API reference is in [docs/api.md](docs/api.md).
 
 ## Useful development commands
 
@@ -226,7 +232,7 @@ docker compose down -v
 docker compose up -d
 ```
 
-Then reload MongoDB with the command from the quick start. **The `-v` option deletes both database volumes and all data in them.** PostgreSQL initialization scripts run automatically only when its data volume is empty.
+Then reload MongoDB with both commands from the quick start. **The `-v` option deletes both database volumes and all data in them.** PostgreSQL initialization scripts run automatically only when its data volume is empty.
 
 ## Database project files
 

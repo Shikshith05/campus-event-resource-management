@@ -1,6 +1,6 @@
 # PES RR data and safe loading
 
-This guide covers the venue data provided for PES University, Ring Road Campus, and the private account and approval mappings needed before production use. The repository contains no real staff account records or approval assignments.
+This guide covers the venue data provided for PES University, Ring Road Campus, and the private account and approval mappings needed before production use. The repository contains no real staff account records or approval assignments. The fictional users and mappings in `db/sql/seed.sql` exist only for a disposable local demo.
 
 ## Venue data and capacity ranges
 
@@ -32,7 +32,7 @@ Create these files locally using the public CSV headers as a guide. Do not overw
 
 The checked-in `data/pes/users.csv`, `clubs.csv`, and `club_members.csv` remain example templates only; the real-data loader reads their private counterparts. Public department and resource files may be used if they contain no personal data. The supplied public venue file is safe to track.
 
-Never create placeholder identities to fill a missing position. Obtain the real account mapping through the project owner's approved process. Keep passwords out of CSVs; `password_hash` must contain a bcrypt hash generated for the account holder.
+For a real campus deployment, never use the fictional local seed users or create placeholder identities to fill a missing position. Obtain the real account mapping through the project owner's approved process. Keep passwords out of CSVs; `password_hash` must contain a bcrypt hash generated for the account holder.
 
 ## Approval sequence and required mappings
 
