@@ -187,3 +187,14 @@ test("health reports an outdated PostgreSQL schema as not ready", () => {
   assert.match(healthRoute, /record_workflow_decision/);
   assert.match(healthRoute, /schema_out_of_date/);
 });
+
+test("MongoDB example URI pins loopback to IPv4", () => {
+  const envExample = read("app/.env.example");
+  assert.match(envExample, /^MONGODB_URI=mongodb:\/\/127\.0\.0\.1:27017\/cerms$/m);
+});
+
+test("approval route checks event status through scoped approval details", () => {
+  const approvalRoute = read("app/app/api/approvals/[eventId]/route.ts");
+  assert.match(approvalRoute, /SELECT event_status FROM approval_details\(\$1::int\[\]\)/);
+  assert.doesNotMatch(approvalRoute, /SELECT status FROM event WHERE event_id/);
+});

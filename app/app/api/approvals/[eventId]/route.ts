@@ -82,13 +82,13 @@ export async function POST(
     const updated = await withUserTransaction(user, async client => {
       const beforeWrite = async (outcome: WorkflowOutcome) => {
         await client.query("SELECT assert_workflow_stage_assignment($1, $2)", [eventId, stage.stage_no]);
-        const { rows } = await client.query<{ status: string }>(
-          "SELECT status FROM event WHERE event_id = $1",
-          [eventId]
+        const { rows } = await client.query<{ event_status: string }>(
+          "SELECT event_status FROM approval_details($1::int[])",
+          [[eventId]]
         );
-        if (rows.length === 0 || rows[0].status !== "PENDING_APPROVAL") {
+        if (rows.length === 0 || rows[0].event_status !== "PENDING_APPROVAL") {
           throw Object.assign(
-            new Error(`Event ${eventId} is ${rows[0]?.status ?? "not visible"}, not PENDING_APPROVAL`),
+            new Error(`Event ${eventId} is ${rows[0]?.event_status ?? "not visible"}, not PENDING_APPROVAL`),
             { code: "55000" }
           );
         }
