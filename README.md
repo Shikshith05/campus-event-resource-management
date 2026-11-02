@@ -120,7 +120,9 @@ Open <http://localhost:3000/login>. To stop the development server, press `Ctrl+
 
 Install PostgreSQL 16 and MongoDB 8 locally, start both services, and make sure `psql` and `mongosh` are on `PATH`. The database scripts below are run from the repository root.
 
-### Reset and initialize PostgreSQL
+### Reset and initialize PostgreSQL (destructive)
+
+These commands **drop and recreate the `cerms` database, deleting all data in it**. Use them only for a disposable local database. If you need to keep an existing `cerms` database, substitute a disposable name such as `cerms_demo` consistently in the commands below and in `DATABASE_URL`.
 
 Stop the app before resetting because active PostgreSQL connections can prevent the database from being dropped.
 
@@ -152,13 +154,14 @@ If PostgreSQL uses password authentication, add `-h localhost` to the `psql` com
 
 ### Load MongoDB data
 
-Run this from the repository root after MongoDB is running:
+Run both commands from the repository root after MongoDB is running. The first loads workflow templates and indexes; the second creates the two sample workflows used by the demo inboxes:
 
 ```sh
-mongosh "mongodb://localhost:27017/cerms" db/mongo/load.js
+mongosh "mongodb://127.0.0.1:27017/cerms" db/mongo/load.js
+mongosh "mongodb://127.0.0.1:27017/cerms" db/mongo/seed_demo_workflows.js
 ```
 
-The same command works in macOS Terminal, Windows PowerShell, and Git Bash when `mongosh` is installed and on `PATH`.
+The commands work in macOS Terminal, Windows PowerShell, and Git Bash when `mongosh` is installed and on `PATH`. Replace `cerms` with your disposable database name if you used a separate database such as `cerms_demo`.
 
 ## App configuration
 
@@ -166,7 +169,7 @@ The same command works in macOS Terminal, Windows PowerShell, and Git Bash when 
 
 ```dotenv
 DATABASE_URL=postgresql://cerms_app:cerms_app_dev@127.0.0.1:5433/cerms
-MONGODB_URI=mongodb://localhost:27017/cerms
+MONGODB_URI=mongodb://127.0.0.1:27017/cerms
 SESSION_SECRET=replace-with-a-long-random-development-secret
 ```
 
@@ -221,7 +224,7 @@ npm run build     # create a production build
 npm run start     # serve the production build
 ```
 
-`npm test` runs the built-in Node test runner for venue data and workflow rules. The `lint` script runs TypeScript checking; it does not run ESLint.
+`npm test` runs the built-in Node test runner for venue data, workflow policy, API access checks, and readiness/configuration regressions. The `lint` script runs TypeScript checking; it does not run ESLint.
 
 ## Resetting Docker data
 
