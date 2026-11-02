@@ -87,6 +87,29 @@ INSERT INTO club (club_id, name, description, department_id, faculty_advisor_id)
 
 
 -- ---------------------------------------------------------------------
+-- workflow_approver_assignment
+-- Fictional mappings for a local coursework demo only. Club events use
+-- each club's faculty advisor; non-club events use a general faculty
+-- coordinator. Every seeded department has a distinct HOD account.
+-- Real deployments must load approved staff mappings from private data.
+-- ---------------------------------------------------------------------
+INSERT INTO workflow_approver_assignment (user_id, approver_role, department_id, club_id) VALUES
+    (5,  'CLUB_COORDINATOR', NULL, 1),
+    (6,  'CLUB_COORDINATOR', NULL, 2),
+    (6,  'CLUB_COORDINATOR', NULL, 3),
+    (5,  'CLUB_COORDINATOR', NULL, 4),
+    (6,  'CLUB_COORDINATOR', NULL, 5),
+    (5,  'CLUB_COORDINATOR', NULL, NULL),
+    (7,  'HOD', 1, NULL),
+    (8,  'HOD', 2, NULL),
+    (12, 'HOD', 3, NULL),
+    (13, 'HOD', 4, NULL),
+    (14, 'HOD', 5, NULL),
+    (10, 'DEAN_OF_STUDENT_AFFAIRS', NULL, NULL),
+    (11, 'VICE_CHANCELLOR', NULL, NULL);
+
+
+-- ---------------------------------------------------------------------
 -- club_member
 -- PLACEHOLDER: replace after campus survey
 -- ---------------------------------------------------------------------
