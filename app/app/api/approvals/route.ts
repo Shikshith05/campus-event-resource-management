@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { errorResponse } from "../../../lib/apiError";
 import { requireUser } from "../../../lib/auth";
 import { queryAsUser } from "../../../lib/db";
-import { APPROVAL_ROLES } from "../../../lib/session";
+import { APPROVAL_INBOX_ROLES } from "../../../lib/session";
 import { getPendingForApprover } from "../../../lib/workflow";
 
 type ApprovalDetailsRow = {
@@ -32,7 +32,7 @@ type ApprovalDetailsRow = {
 //   PostgreSQL -> event, booking, venue and priority score, through
 //                 approval_details(), which applies the database rules
 export async function GET() {
-  const { user, response } = await requireUser(APPROVAL_ROLES);
+  const { user, response } = await requireUser(APPROVAL_INBOX_ROLES);
   if (response) return response;
 
   try {

@@ -32,6 +32,13 @@ export const EVENT_ROLES: readonly AppRole[] = [...REQUESTER_ROLES, ...STAFF_ROL
 // Student coordinators do not approve. The assigned faculty member and
 // workflow-only central approvers can open the approval inbox.
 export const APPROVAL_ROLES: readonly AppRole[] = ["FACULTY", "HOD", "WORKFLOW_APPROVER"];
+// Coordinators and admins can inspect their inbox route, but only an assigned
+// approver role can submit an approval decision.
+export const APPROVAL_INBOX_ROLES: readonly AppRole[] = [
+  ...APPROVAL_ROLES,
+  "CLUB_COORDINATOR",
+  "ADMIN"
+];
 export const ADMIN_ROLES: readonly AppRole[] = ["ADMIN"];
 
 export type SessionUser = {
@@ -64,8 +71,8 @@ const ROLE_RULES: { prefix: string; roles: readonly AppRole[] }[] = [
   { prefix: "/availability", roles: EVENT_ROLES },
   { prefix: "/api/analytics", roles: STAFF_ROLES },
   { prefix: "/analytics", roles: STAFF_ROLES },
-  { prefix: "/api/approvals", roles: APPROVAL_ROLES },
-  { prefix: "/approvals", roles: APPROVAL_ROLES },
+  { prefix: "/api/approvals", roles: APPROVAL_INBOX_ROLES },
+  { prefix: "/approvals", roles: APPROVAL_INBOX_ROLES },
   { prefix: "/api/admin", roles: ADMIN_ROLES },
   { prefix: "/admin", roles: ADMIN_ROLES }
 ];
