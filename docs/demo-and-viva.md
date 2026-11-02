@@ -61,16 +61,42 @@ Set `DATABASE_URL` in `app/.env.local` to port **5432** when using WSL PostgreSQ
   7. `coordinator.two@campus.example` — student club coordinator, read-only inbox
 - [ ] Open `docs/er-diagram-core.png` and `docs/er-diagram-booking.png`.
 
-## Demo sequence
+## 2. Demo script (about 6½ minutes)
 
-| Step | Show | Explain |
-|---|---|---|
-| 1 | `data/pes/venues.csv` and the request form | All 10 supplied PES RR venues retain the exact building labels and estimated min/max ranges. An unconfirmed estimate is not treated as a safe booking capacity, so those venues stay unavailable until confirmed. |
-| 2 | `db/sql/load_pes_venues.sql` | It upserts by venue name, preserves an already confirmed capacity, and does not delete bookings or events. |
-| 3 | `db/mongo/workflow_templates.json` | Club, department, guest-lecture, and standard templates each use the required four roles in the same order. Hackathon requests use the standard template. Guest lecture fields remain required. |
-| 4 | `db/sql/schema.sql`, `workflow.sql`, and `app/lib/workflow-policy.ts` | PostgreSQL stores scoped role assignments. The app refuses missing assignments, self-approval, duplicate assignees, and out-of-order decisions. A student club coordinator is not the faculty Club Coordinator approver. |
-| 5 | `app/app/api/approvals/[eventId]/route.ts` and `workflow_instances` | The backend checks the current assigned stage and an SQL assignment check before recording. MongoDB updates the stage atomically, writes audit entries, and notifies the next approver. Rejection ends the workflow; only stage four may set the event to APPROVED. |
-| 6 | `db/mongo/workflow_rud.js` | The R/U/D coursework demo uses isolated scratch collections and does not alter live events, workflow records, or notification history. |
+| Time | Who / where | Do | Say | Rubric |
+|---|---|---|---|---|
+| 0:00 | ER images, PES venue CSV, README | Show the ER images, stack, and the supplied PES venue list. Point out that venues with unconfirmed capacities are visible but unavailable for booking. | “PostgreSQL protects bookings and event facts; MongoDB stores flexible approval chains. Estimated capacity is never treated as a confirmed safe limit.” | 1, 2, 5 |
+| 0:40 | **Student Two**, `/events/new` | Submit *Robotics Expo Day*: CLUB, TECH FEST, Robotics Club, ECE, 120 people, Open Air Theatre, a date in December 2026, PA System 1. | “One `CALL submit_booking_request` inserts the event, booking, and equipment in one transaction, then runs the priority engine.” | 10, 11, 8 |
+| 1:20 | Student Two, `/events/new` | Submit a second request for Seminar Hall A on **12 Nov 2026, 10:30–11:30**, 40 people. The clash shows alternates. Choose **Classroom 101** and submit again. | “The confirmed booking wins. The exclusion constraint prevents double-booking; the losing request gets alternatives from `suggest_alternate_venues`, which uses a CTE.” | 8, 3 |
+| 2:00 | **Faculty Two** → **HOD ECE**, `/approvals` | Approve *Robotics Expo Day* at stages 1 and 2. Point at the priority score. | “The faculty advisor is stage one; the HOD is stage two. MongoDB identifies the current turn, and PostgreSQL checks the account’s scoped assignment.” | 9, 12 |
+| 2:40 | **Demo Dean** → **Demo Vice Chancellor**, `/approvals` | Approve stages 3 and 4. Optionally open `/approvals` as Student Coordinator Two and Admin to show their read-only inbox access. | “The Dean and Vice Chancellor use limited workflow approver accounts. Only the assigned account can decide the current stage; the last approval completes the event.” | 11, 12 |
+| 3:00 | Student Two, `/events` | Open *Robotics Expo Day* and show its approval timeline. | “The timeline combines the MongoDB workflow and audit trail with the public stage designations.” | 10, 9 |
+| 3:20 | Student Two → `/analytics`, then `psql` | Show the access denial, then run the RLS snippet below. | “The same SELECT returns different rows by role. RBAC and row-level security are enforced by PostgreSQL, not only by the interface.” | 12 |
+| 4:00 | `psql` | Run `\i db/sql/queries.sql`; show E1 and C1. Then run `\i db/sql/dml.sql` and show the procedure call and `booking_status_history`. | “The query catalogue demonstrates joins, nested and correlated queries, and recursive CTEs. The DML walkthrough rolls back its changes.” | 6, 7, 8 |
+| 4:50 | MongoDB shell | Run `mongosh "mongodb://localhost:27017/cerms" db/mongo/analytics.js`; show `db/mongo/workflow_rud.js` for isolated R/U/D examples. | “The aggregation summarizes stage turnaround. The R/U/D demo uses scratch collections and leaves live workflows alone.” | 4, 9 |
+| 5:30 | **Admin**, `/admin` then `/analytics` | Show venue and resource administration using the placeholder venues. Retire a placeholder venue and show analytics. | “A venue is retired rather than deleted so old bookings retain their reference. PES venues stay unbookable until their exact safe capacities are confirmed.” | 10, 11 |
+| 6:10 | Repository | Show `git log --oneline -10` and the `docs/` folder. | “The project history has ten task-focused commits, and the documentation connects the design to the rubric.” | 13, 14 |
+
+**RLS snippet for 3:20** (paste in `psql`; the transaction rolls back):
+
+```sql
+BEGIN;
+SET LOCAL ROLE cerms_student; SELECT set_config('app.current_user_id', '1', true);
+SELECT 'student 1' AS who, count(*) AS events_visible FROM event;
+SET LOCAL ROLE cerms_faculty; SELECT set_config('app.current_user_id', '5', true);
+SELECT 'faculty 5' AS who, count(*) AS events_visible FROM event;
+SET LOCAL ROLE cerms_student; SELECT set_config('app.current_user_id', '1', true);
+UPDATE event SET status = 'APPROVED' WHERE event_id = 3; -- blocked by row-level security
+ROLLBACK;
+```
+
+If time is short, skip the MongoDB aggregation and admin steps and show the screenshots under `docs/screenshots/`. The ten PES RR venues are deliberately not bookable until an authorized person confirms each exact safe capacity; use the five legacy placeholder venues for booking examples.
+
+**What can go wrong:**
+
+- A 503 or “temporarily unavailable” response usually means PostgreSQL or MongoDB stopped. Start the WSL service or Docker container and retry.
+- A request stays in DRAFT if the demo approver SQL seed or MongoDB demo workflow seed was skipped. Repeat the setup steps above on a disposable local database.
+- The venue clash example depends on Seminar Hall A, 12 Nov 2026, 10:30–11:30.
 
 To run the source-level checks and app verification:
 
