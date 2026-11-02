@@ -256,23 +256,22 @@ INSERT INTO booking_conflict_log (conflict_id, winning_booking_id, losing_bookin
 
 
 -- ---------------------------------------------------------------------
--- Placeholder requests demonstrating event types. No central or faculty
--- workflow mappings are seeded. These remain DRAFT until real assignment
--- data is configured; no event should claim PENDING_APPROVAL without a
--- corresponding MongoDB workflow instance.
+-- Two fictional, pre-submitted requests keep the local demo's approver
+-- inboxes populated after db/mongo/seed_demo_workflows.js is run. Their
+-- PostgreSQL and MongoDB fixture IDs and statuses must stay in sync.
 -- ---------------------------------------------------------------------
 INSERT INTO event (event_id, title, description, category, event_type, organizer_id,
                    department_id, club_id, expected_footfall, status, created_at) VALUES
-    (7, 'Robotics Line-Follower Contest', 'Placeholder', 'CLUB', 'COMPETITION', 2, 2, 2, 60, 'DRAFT', '2026-10-20 10:00+05:30'),
-    (8, 'Robotics Workshop Series',       'Placeholder', 'CLUB', 'WORKSHOP',    2, 2, 2, 40, 'DRAFT', '2026-10-22 10:00+05:30');
+    (7, 'Robotics Line-Follower Contest', 'Placeholder demo request', 'CLUB', 'COMPETITION', 2, 2, 2, 60, 'PENDING_APPROVAL', '2026-10-20 10:00+05:30'),
+    (8, 'Robotics Workshop Series',       'Placeholder demo request', 'CLUB', 'WORKSHOP',    2, 2, 2, 40, 'PENDING_APPROVAL', '2026-10-22 10:00+05:30');
 
 INSERT INTO event_venue_preference (event_id, venue_id, preference_order) VALUES
     (7, 3, 1),
     (8, 4, 1);
 
 INSERT INTO booking (booking_id, event_id, venue_id, start_time, end_time, status, requested_at) VALUES
-    (8, 7, 3, '2026-11-18 10:00+05:30', '2026-11-18 13:00+05:30', 'CONFIRMED', '2026-10-20 10:00+05:30'),
-    (9, 8, 4, '2026-11-25 14:00+05:30', '2026-11-25 17:00+05:30', 'CONFIRMED', '2026-10-22 10:00+05:30');
+    (8, 7, 3, '2026-11-18 10:00+05:30', '2026-11-18 13:00+05:30', 'PENDING', '2026-10-20 10:00+05:30'),
+    (9, 8, 4, '2026-11-25 14:00+05:30', '2026-11-25 17:00+05:30', 'PENDING', '2026-10-22 10:00+05:30');
 
 INSERT INTO booking_resource (booking_id, resource_id, quantity) VALUES
     (8, 1, 1),      -- contest: 1 projector
