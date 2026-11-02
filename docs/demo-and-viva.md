@@ -1,20 +1,65 @@
-# CERMS demo and viva notes
+# CERMS: demo script, rubric map and viva questions
 
-This guide uses the existing local development database. Do not reset or replace a shared database for a presentation. `docker compose down -v` deletes both database volumes and their data; use it only for a disposable local environment.
+This walkthrough uses fictional local seed accounts and placeholder venues. Never use these identities or mappings for a real campus deployment. Reset only a disposable local database: `DROP DATABASE` and `docker compose down -v` delete data.
 
-## Safe local setup
+## 1. Before the demo (10 minutes earlier)
 
-Start services if they are not already running:
+### WSL PostgreSQL on port 5432
+
+Run from the repository root in the WSL terminal. Keep this terminal open so PostgreSQL stays available during the demo.
 
 ```sh
+psql -h localhost -p 5432 -U postgres -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS cerms WITH (FORCE)"
+psql -h localhost -p 5432 -U postgres -v ON_ERROR_STOP=1 -c "CREATE DATABASE cerms"
+for sqlFile in schema views booking_logic analytics procedures seed rbac workflow guest_lecture; do
+  psql -h localhost -p 5432 -U postgres -d cerms -v ON_ERROR_STOP=1 -q -f "db/sql/$sqlFile.sql" || break
+done
+psql -h localhost -p 5432 -U postgres -d cerms -c "SELECT event_id, status FROM event WHERE event_id IN (7, 8) ORDER BY event_id"
+```
+
+Use these reset commands only with a disposable local `cerms` database. The last query should show events 7 and 8 as `PENDING_APPROVAL`.
+
+### MongoDB and the app
+
+If using Docker, reset its volumes only when they contain disposable demo data:
+
+```sh
+docker compose down -v
 docker compose up -d
 docker compose exec -T mongodb mongosh "mongodb://localhost:27017/cerms" /db/mongo/load.js
+docker compose exec -T mongodb mongosh "mongodb://localhost:27017/cerms" /db/mongo/seed_demo_workflows.js
+```
+
+For WSL services, start MongoDB and run the two loader commands from the repository root:
+
+```sh
+mongosh "mongodb://localhost:27017/cerms" db/mongo/load.js
+mongosh "mongodb://localhost:27017/cerms" db/mongo/seed_demo_workflows.js
+```
+
+`load.js` upserts workflow templates and indexes. The demo seeder adds pending MongoDB workflow instances for the two PostgreSQL sample requests without replacing existing instances. Then configure and start the app:
+
+```sh
 cd app
+cp .env.example .env.local
 npm install
 npm run dev
 ```
 
-`load.js` upserts managed workflow templates and indexes. It preserves workflow instances, audit history, and notifications. Development seed users are examples only and have no approval assignments. The application intentionally refuses new submissions until real, distinct approver mappings are configured. Do not substitute demo accounts for real campus designations.
+Set `DATABASE_URL` in `app/.env.local` to port **5432** when using WSL PostgreSQL. The checked-in `.env.example` uses port **5433** for Docker Compose. Keep the local session secret in `.env.local`.
+
+### Pre-flight
+
+- [ ] <http://localhost:3000/api/health> reports PostgreSQL and MongoDB as `ok`.
+- [ ] Log in to the accounts you will use. All seeded demo passwords are `password123`:
+  1. `student.two@campus.example` — requester
+  2. `faculty.two@campus.example` — Robotics Club faculty advisor, stage 1
+  3. `hod.ece@campus.example` — ECE HOD, stage 2
+  4. `dean.demo@campus.example` — fictional demo Dean, stage 3
+  5. `vc.demo@campus.example` — fictional demo Vice Chancellor, stage 4
+  6. `admin.one@campus.example` — administrator, read-only inbox
+  7. `coordinator.two@campus.example` — student club coordinator, read-only inbox
+- [ ] Open `docs/er-diagram-core.png` and `docs/er-diagram-booking.png`.
 
 ## Demo sequence
 
