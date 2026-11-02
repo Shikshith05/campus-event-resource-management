@@ -14,7 +14,7 @@ type ApprovalItem = {
 
 const fmtDate = (value: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
 
-export default function ApprovalInbox() {
+export default function ApprovalInbox({ canDecide }: { canDecide: boolean }) {
   const [items, setItems] = useState<ApprovalItem[]>([]);
   const [comments, setComments] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
@@ -66,6 +66,7 @@ export default function ApprovalInbox() {
 
   return (
     <div className="section-stack">
+      {!canDecide && <p className="message">This inbox is read-only. Only an approver assigned to the current stage can record a decision.</p>}
       {error && <p className="message error" role="alert">{error}</p>}
       {notice && <p className="message" role="status">{notice}</p>}
       {loading ? <section className="panel panel-pad"><p className="muted">Loading your approval inbox…</p></section> : items.length ? items.map(item => {
@@ -96,7 +97,7 @@ export default function ApprovalInbox() {
                   <div><span className="field-help">Approver role</span><div>{approverLabel(item.stage.approver_role)}</div></div>
                 </div>
               </div>
-              <div className="approval-action">
+              {canDecide && <div className="approval-action">
                 <label className="field" htmlFor={`comment-${item.event_id}`}>
                   <span>{"Comment"} <span className="muted">· required to reject</span></span>
                   <textarea className="control" id={`comment-${item.event_id}`} maxLength={500}
@@ -113,7 +114,7 @@ export default function ApprovalInbox() {
                   </button>
                   <span className="field-help">Comments are limited to 500 characters.</span>
                 </div>
-              </div>
+              </div>}
             </div>
           </article>
         );
