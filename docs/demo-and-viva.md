@@ -98,6 +98,35 @@ If time is short, skip the MongoDB aggregation and admin steps and show the scre
 - A request stays in DRAFT if the demo approver SQL seed or MongoDB demo workflow seed was skipped. Repeat the setup steps above on a disposable local database.
 - The venue clash example depends on Seminar Hall A, 12 Nov 2026, 10:30–11:30.
 
+## 3. Rubric map
+
+| # | Rubric item (marks) | Where it is proved |
+|---|---|---|
+| 1 | ER diagram (2) | `docs/er-diagram.md`, the ER diagram images, and `docs/schema.dbml`. |
+| 2 | Relational schema, keys, relationships, constraints (3) | `docs/schema-explanation.md` and `docs/er-diagram.md`. |
+| 3 | SQL DDL with constraints (4) | `db/sql/schema.sql`: primary/foreign keys, uniqueness and check constraints, indexes, and the booking overlap constraint. |
+| 4 | NoSQL database creation (4) | `db/mongo/workflow_templates.json`, `db/mongo/load.js`, and the workflow collections. |
+| 5 | Technology justification (1) | `docs/schema-explanation.md`: relational integrity in PostgreSQL and flexible approvals in MongoDB. |
+| 6 | DML operations (4) | `db/sql/dml.sql`: insert, update, delete, savepoints, procedures, and rollback examples. |
+| 7 | Nested, correlated, recursive, and join queries (4) | `db/sql/queries.sql`: joins, nested and correlated subqueries, recursive CTEs, grouping, and window functions. |
+| 8 | Procedure, function, trigger, and CTE (6) | `db/sql/procedures.sql`, `db/sql/booking_logic.sql`, `db/sql/workflow.sql`, and `db/sql/queries.sql`. |
+| 9 | NoSQL read, update, delete (7) | `db/mongo/workflow_rud.js`; workflow processing and aggregation are in `db/mongo/workflow_engine.js` and `db/mongo/analytics.js`. |
+| 10 | Next.js interface (3) | Components under `app/app/components/`, pages under `app/app/`, and the paired screenshots in `docs/screenshots/`. |
+| 11 | Backend/API and database integration (2) | `app/app/api/`, `app/lib/db.ts`, and `app/lib/workflow.ts`. |
+| 12 | Authentication, roles, and database RBAC (4) | `app/lib/session.ts`, `app/middleware.ts`, `db/sql/rbac.sql`, and `db/sql/workflow.sql`. |
+| 13 | Documentation and Git (2) | `README.md`, the `docs/` guides, and the ten task-focused commits in `git log`. |
+| 14 | Originality, contribution, and viva (4) | The team contribution table below and the viva questions in this guide. |
+
+### Team contribution
+
+| Area | Shikshith V | Shreyas K M |
+|---|---|---|
+| Design | ER diagram, schema, normalization notes, seed data | |
+| PostgreSQL | DDL, DML, queries, procedures and audit trigger, RBAC/RLS, workflow SQL, guest lectures, PES data loader | Booking validation triggers, priority engine, views, analytics views |
+| MongoDB | Templates, instances, R/U/D demo, delete functions | Workflow engine, analytics aggregations |
+| Application | Authentication, middleware, database-enforced access, approval workflow API, guest lectures, partial admin edits | API foundation and application pages for requests, events, calendar, approvals, analytics, and admin |
+| Testing and docs | Verification on the real setup, end-to-end tests, screenshots, API and viva docs | Setup guide and README |
+
 To run the source-level checks and app verification:
 
 ```sh
