@@ -53,6 +53,9 @@ INSERT INTO department (department_id, code, name) VALUES
 -- DEVELOPMENT ONLY: every sample user's password is "password123".
 -- password_hash holds a real bcrypt hash of it (cost 10, own salt per
 -- user), generated with bcryptjs. Never use these accounts in production.
+-- The Demo Dean/VC and extra HOD accounts below are fictional local-demo
+-- identities. They let a clean coursework reset exercise every workflow
+-- stage without inventing or publishing real campus staff records.
 -- ---------------------------------------------------------------------
 INSERT INTO app_user (user_id, university_id, full_name, email, password_hash, role_id, department_id) VALUES
     (1, 'STU001', 'Student One',     'student.one@campus.example',     '$2b$10$w6rlSUoY4JXdul9R9E3N1eediE0ocA6dAzRF2eTc.fEtV/smkaNTi', 1, 1),
@@ -63,7 +66,12 @@ INSERT INTO app_user (user_id, university_id, full_name, email, password_hash, r
     (6, 'FAC002', 'Faculty Two',     'faculty.two@campus.example',     '$2b$10$cN2RHVHN5H6QBabuK5AAcuRMa5UjM57R3WyvMRX8zEb0Y6YD35DmK', 3, 2),
     (7, 'FAC003', 'HOD One',         'hod.cse@campus.example',         '$2b$10$PkScKvzco22uzGKhfsHJNuFzuJL3ihtI3i5H7dZLmmPg0euqNfy5y', 4, 1),
     (8, 'FAC004', 'HOD Two',         'hod.ece@campus.example',         '$2b$10$iX.UeTPhyK2Nl24JxP7Pa.8qROBuHHH/4zNpqkgq/NJxvY7dQfpHS', 4, 2),
-    (9, 'ADM001', 'Admin One',       'admin.one@campus.example',       '$2b$10$.kNCuM92V2yNO268TH2tOOdq0Z0VI.fm6pa9DfGLZTZfHrT1UvPLK', 5, NULL);
+    (9, 'ADM001', 'Admin One',       'admin.one@campus.example',       '$2b$10$.kNCuM92V2yNO268TH2tOOdq0Z0VI.fm6pa9DfGLZTZfHrT1UvPLK', 5, NULL),
+    (10, 'DEMO-DOS', 'Demo Dean',    'dean.demo@campus.example',       '$2b$10$XKEP7EzbKZmB7HtSbo08he7wOIRL7CZfhNTlvMTAIz8t/32LwS9xO', 6, NULL),
+    (11, 'DEMO-VC',  'Demo Vice Chancellor', 'vc.demo@campus.example', '$2b$10$LYdpV9ycs5dE5Aabhyvoku3hpQRO5LCygBsnfAs6H/eWPedCPhzZm', 6, NULL),
+    (12, 'DEMO-HOD-AIML', 'Demo HOD AIML', 'hod.aiml.demo@campus.example', '$2b$10$3rcNklnf93xRO93sWFstQ.bPdwwjaco9YVCfDIeaP3ZBerYpJqxAi', 4, 3),
+    (13, 'DEMO-HOD-EEE', 'Demo HOD EEE', 'hod.eee.demo@campus.example', '$2b$10$6UJrPsMaPXqFZzHbY9tCruJM39OP896B.28H4jfQnpZwZMnKQkv7G', 4, 4),
+    (14, 'DEMO-HOD-ME', 'Demo HOD ME', 'hod.me.demo@campus.example', '$2b$10$NAi37qtmEuUqrsOTl/bY0udnljgXC3.K8z3EWRyVdGM4EMtq8cWaW', 4, 5);
 
 
 -- ---------------------------------------------------------------------
