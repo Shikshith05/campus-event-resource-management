@@ -178,3 +178,12 @@ test("requester-facing responses do not expose approver account identities", () 
   assert.doesNotMatch(timelineRoute, /assigned_to_user_id|acted_by_user_id|full_name/);
   assert.match(appShell, /user\.role === "WORKFLOW_APPROVER" \? "Assigned approver"/);
 });
+
+test("health reports an outdated PostgreSQL schema as not ready", () => {
+  const healthRoute = read("app/app/api/health/route.ts");
+
+  assert.match(healthRoute, /workflow_approver_assignment/);
+  assert.match(healthRoute, /venue_type_confirmed/);
+  assert.match(healthRoute, /record_workflow_decision/);
+  assert.match(healthRoute, /schema_out_of_date/);
+});
