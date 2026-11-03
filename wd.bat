@@ -64,19 +64,29 @@ timeout /t 1 /nobreak >nul
 goto wait_postgres
 
 :postgres_ready
+for /f "usebackq delims=" %%P in (`wsl --exec wslpath -a "%CD%"`) do set "WSL_ROOT=%%P"
 if /i "%~1"=="setup" goto setup_postgres
 wsl -- env PGPASSWORD=cerms_app_dev psql -h localhost -U cerms_app -d cerms -tAc "select 1" >nul 2>&1
-if not errorlevel 1 goto database_ready
+if not errorlevel 1 goto check_schema
 echo The cerms database is not set up yet.
 
 :setup_postgres
-for /f "usebackq delims=" %%P in (`wsl --exec wslpath -a "%CD%"`) do set "WSL_ROOT=%%P"
 wsl -- bash "%WSL_ROOT%/scripts/setup-postgres-wsl.sh"
 if errorlevel 1 (
   echo ERROR: PostgreSQL setup failed.
   pause
   exit /b 1
 )
+
+:check_schema
+set "SCHEMA_OK="
+for /f "usebackq delims=" %%S in (`wsl --exec env PGPASSWORD^=cerms_app_dev psql -h localhost -U cerms_app -d cerms -tA -f "%WSL_ROOT%/scripts/check-schema.sql"`) do set "SCHEMA_OK=%%S"
+if "%SCHEMA_OK%"=="t" goto database_ready
+echo ERROR: The cerms database was built from older SQL files and is out of date.
+echo Run "wd.bat setup" to rebuild it (deletes its data), or apply the
+echo existing-database upgrade in docs\real-data-guide.md to keep its data.
+pause
+exit /b 1
 
 :database_ready
 echo Checking MongoDB...
