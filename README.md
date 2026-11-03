@@ -56,7 +56,7 @@ Commands below assume you have opened a terminal at the repository root. The Doc
 
 Docker Compose starts PostgreSQL and MongoDB. On a new database volume, PostgreSQL automatically applies the SQL files in the correct order and loads the sample data together with the ten PES RR venues. The venues retain capacity ranges, and none is bookable until its exact safe capacity is confirmed.
 
-On Windows, start Docker Desktop and run `start-project.bat` from the repository root (or double-click it). It starts the databases, waits for them to be ready, loads MongoDB workflow data, creates `app/.env.local` with a random session secret if needed, installs npm dependencies if needed, and starts the web app against the Docker `cerms` databases. It leaves an existing `.env.local` file unchanged.
+On Windows, start Docker Desktop and run `d.bat` from the repository root (or double-click it). It starts the databases, waits for them to be ready, loads MongoDB workflow data, creates `app/.env.local` with a random session secret if needed, installs npm dependencies if needed, and starts the web app against the Docker `cerms` databases. It leaves an existing `.env.local` file unchanged.
 
 On macOS, start Docker Desktop and run `./start-project.sh` from the repository root. It performs the same setup and starts the web app against the Docker `cerms` databases, leaving an existing `.env.local` unchanged.
 
@@ -122,7 +122,9 @@ Open <http://localhost:3000/login>. To stop the development server, press `Ctrl+
 
 ## Run without Docker
 
-Install PostgreSQL 16 and MongoDB 8 locally, start both services, and make sure `psql` and `mongosh` are on `PATH`. The database scripts below are run from the repository root.
+**Windows shortcut:** if PostgreSQL 16 runs in WSL and MongoDB 8 with `mongosh` is installed on Windows, run `wd.bat` from the repository root. It starts PostgreSQL in WSL and keeps WSL awake in a minimized window, so close that window after you stop the app. On the first run it builds the `cerms` database with `scripts/setup-postgres-wsl.sh`, which asks once for the `postgres` password. It then loads the MongoDB workflow data and starts the web app. Run `wd.bat setup` to rebuild the database; **this deletes its data**.
+
+Otherwise, install PostgreSQL 16 and MongoDB 8 locally, start both services, and make sure `psql` and `mongosh` are on `PATH`. The database scripts below are run from the repository root.
 
 ### Reset and initialize PostgreSQL (destructive)
 
