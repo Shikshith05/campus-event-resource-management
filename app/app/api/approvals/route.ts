@@ -3,7 +3,7 @@ import { errorResponse } from "../../../lib/apiError";
 import { requireUser } from "../../../lib/auth";
 import { queryAsUser } from "../../../lib/db";
 import { APPROVAL_INBOX_ROLES } from "../../../lib/session";
-import { getPendingForApprover } from "../../../lib/workflow";
+import { getPendingForApprover, getPendingForEvents } from "../../../lib/workflow";
 
 type ApprovalDetailsRow = {
   event_id: number;
@@ -27,25 +27,44 @@ type ApprovalDetailsRow = {
 };
 
 // GET /api/approvals
-// The logged-in approver's inbox: stages assigned to them and PENDING.
-//   MongoDB    -> which workflows are waiting for this user
-//   PostgreSQL -> event, booking, venue and priority score, through
-//                 approval_details(), which applies the database rules
+// Assigned approvers see stages waiting for them. Student club coordinators
+// get a read-only view of pending workflows for their own clubs.
+//   MongoDB    -> current workflow stage and assignment
+//   PostgreSQL -> request visibility through RLS, or approval_details()
+//                 for assigned approvers' additional review data
 export async function GET() {
   const { user, response } = await requireUser(APPROVAL_INBOX_ROLES);
   if (response) return response;
 
   try {
-    const pending = await getPendingForApprover(user.userId);
+    // Student club coordinators can monitor requests for clubs they lead,
+    // but are not stage approvers. PostgreSQL RLS limits this read to those
+    // clubs; the decision endpoint still rejects this role.
+    const coordinatedClubRows = user.role === "CLUB_COORDINATOR"
+      ? await queryAsUser<ApprovalDetailsRow>(
+          user,
+          `SELECT event_id, title, category, event_type, expected_footfall,
+                  event_status, organizer_id, organizer_name, department_code,
+                  club_name, booking_id, booking_status, start_time, end_time,
+                  venue_id, venue_name, venue_capacity, NULL::numeric AS priority_score
+           FROM event_request_summary
+           WHERE category = 'CLUB' AND event_status = 'PENDING_APPROVAL'
+           ORDER BY created_at DESC`
+        )
+      : null;
+
+    const pending = coordinatedClubRows
+      ? await getPendingForEvents(coordinatedClubRows.map(row => row.event_id))
+      : await getPendingForApprover(user.userId);
     if (pending.length === 0) {
       return NextResponse.json({ items: [] });
     }
 
-    const details = await queryAsUser<ApprovalDetailsRow>(
-      user,
-      "SELECT * FROM approval_details($1::int[])",
-      [pending.map(item => item.instance.event_id)]
-    );
+    const details = coordinatedClubRows ?? await queryAsUser<ApprovalDetailsRow>(
+        user,
+        "SELECT * FROM approval_details($1::int[])",
+        [pending.map(item => item.instance.event_id)]
+      );
     const byEvent = new Map(details.map(row => [row.event_id, row]));
 
     const items = pending.map(({ instance, stage }) => {

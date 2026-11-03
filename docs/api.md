@@ -32,6 +32,7 @@ The stage designation `CLUB_COORDINATOR` is assigned to a responsible faculty me
 | `GET` | `/api/event-options` | Event roles | Departments, venues, resources, and clubs available to the requester. |
 | `GET` | `/api/events` | Event roles | Requests visible under PostgreSQL row rules. |
 | `POST` | `/api/events/submit` | Event roles | Submit a request and start the four-stage workflow. |
+| `DELETE` | `/api/events/{eventId}` | Request owner, draft only | Delete an unsubmitted draft request. |
 | `GET` | `/api/events/{eventId}/workflow` | Event roles, visible event only | Designation-based timeline and audit actions. |
 | `GET` | `/api/approvals` | Approval roles | Current assigned approval inbox. |
 | `POST` | `/api/approvals/{eventId}` | Assigned current-stage approver | Approve or reject the current stage. |
@@ -119,7 +120,7 @@ If any approver mapping is missing, the request is compensated back to `DRAFT` a
 
 ### `GET /api/approvals`
 
-Returns pending items assigned to the logged-in user. An item identifies the current stage by role and designation. A `WORKFLOW_APPROVER` can see only assigned approval details; student club coordinators receive `403`.
+Returns pending items assigned to the logged-in approver. Student `CLUB_COORDINATOR` accounts also receive a read-only list of pending requests for clubs they coordinate; the assigned faculty advisor remains the stage-one approver. The decision endpoint does not grant student coordinators approval rights. A `WORKFLOW_APPROVER` can see only assigned approval details.
 
 ### `POST /api/approvals/{eventId}`
 

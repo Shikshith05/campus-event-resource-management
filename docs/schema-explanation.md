@@ -395,10 +395,10 @@ Approvers need PostgreSQL data that rbac.sql hides from them on purpose. Instead
 
 | Object | Why it is needed |
 |---|---|
-| policies `event_coordinator_select`, `booking_coordinator_select` | a club coordinator must *see* (not edit) other students' requests for their own club |
+| policies `event_coordinator_select`, `booking_coordinator_select` | a student club coordinator can view (not edit or approve) requests for clubs they lead |
 | `workflow_context(event_id)` | resolves the four scoped assignments (the `role` table is admin-only); returns internal account IDs to the application, which never includes them in requester responses |
 | `approval_details(event_ids[])` | the inbox needs the priority score, and `calculate_booking_priority()` reads `role` |
-| `record_workflow_decision(event_id, decision)` | a coordinator may *reject* at stage 1 but has no UPDATE right on other people's events |
+| `record_workflow_decision(event_id, decision)` | only the account assigned to the current workflow stage can record the stage decision |
 
 Each is `SECURITY DEFINER` with EXECUTE revoked from PUBLIC, and each checks `app.current_user_id` itself. Division of labour: **MongoDB decides whose turn it is; PostgreSQL decides what that person may see and change.**
 

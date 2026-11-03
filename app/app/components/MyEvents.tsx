@@ -54,6 +54,8 @@ export default function MyEvents() {
   const [timeline, setTimeline] = useState<WorkflowResponse | null>(null);
   const [timelineLoading, setTimelineLoading] = useState(false);
   const [timelineError, setTimelineError] = useState("");
+  const [deletingId, setDeletingId] = useState<number | null>(null);
+  const [actionError, setActionError] = useState("");
 
   const loadTimeline = useCallback(async (eventId: number) => {
     setSelectedId(eventId);
@@ -71,6 +73,26 @@ export default function MyEvents() {
       setTimelineLoading(false);
     }
   }, []);
+
+  async function deleteDraft(event: EventRow) {
+    if (!window.confirm(`Delete the draft “${event.title}”? You can submit a new request afterward.`)) return;
+    setDeletingId(event.event_id);
+    setActionError("");
+    try {
+      const response = await fetch(`/api/events/${event.event_id}`, { method: "DELETE" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.message || "Could not delete this draft.");
+      setRows(current => current.filter(row => row.event_id !== event.event_id));
+      if (selectedId === event.event_id) {
+        setSelectedId(null);
+        setTimeline(null);
+      }
+    } catch (reason) {
+      setActionError(reason instanceof Error ? reason.message : "Could not delete this draft.");
+    } finally {
+      setDeletingId(null);
+    }
+  }
 
   useEffect(() => {
     fetch("/api/events")
@@ -96,6 +118,7 @@ export default function MyEvents() {
   return (
     <div className="section-stack">
       {error && <p className="message error" role="alert">{error}</p>}
+      {actionError && <p className="message error" role="alert">{actionError}</p>}
       <section className="panel panel-pad">
         <div className="card-head">
           <div><h2 className="panel-title">Event requests</h2><p className="panel-copy">Browse the requests visible to your account and review their approval timelines.</p></div>
@@ -120,9 +143,19 @@ export default function MyEvents() {
                     </p>
                     <p className="event-organizer muted">Organizer: {event.organizer_name}</p>
                   </div>
-                  <button className="btn secondary small" type="button" onClick={() => void loadTimeline(event.event_id)}>
-                    {selectedId === event.event_id ? "Refresh timeline" : "Approval timeline"}
-                  </button>
+                  <div className="button-row" style={{ marginTop: 0 }}>
+                    <button className="btn secondary small" type="button" onClick={() => void loadTimeline(event.event_id)}>
+                      {selectedId === event.event_id ? "Refresh timeline" : "Approval timeline"}
+                    </button>
+                    {event.event_status === "DRAFT" && <button
+                      className="btn danger small"
+                      type="button"
+                      onClick={() => void deleteDraft(event)}
+                      disabled={deletingId === event.event_id}
+                    >
+                      {deletingId === event.event_id ? "Deleting…" : "Delete draft"}
+                    </button>}
+                  </div>
                 </div>
                 <div className="divider" />
                 <div className="grid three">

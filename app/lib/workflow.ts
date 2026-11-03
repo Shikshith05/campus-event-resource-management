@@ -350,6 +350,24 @@ export async function getPendingForApprover(userId: number): Promise<PendingItem
   });
 }
 
+// Read-only club coordinators may monitor current workflows for events in
+// clubs they lead. The caller supplies event IDs already filtered by
+// PostgreSQL row-level security; this function does not grant decision rights.
+export async function getPendingForEvents(eventIds: number[]): Promise<PendingItem[]> {
+  if (eventIds.length === 0) return [];
+
+  const { instances } = await collections();
+  const found = await instances
+    .find({ event_id: { $in: eventIds }, status: "IN_PROGRESS" })
+    .sort({ submitted_at: 1 })
+    .toArray();
+
+  return found.flatMap(instance => {
+    const stage = currentPendingStage(instance);
+    return stage ? [{ instance, stage }] : [];
+  });
+}
+
 export function currentPendingStage(instance: WorkflowInstance): WorkflowStage | undefined {
   return instance.stages.find(
     stage => stage.stage_no === instance.current_stage_no && stage.status === "PENDING"

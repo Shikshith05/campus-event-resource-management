@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { approverLabel } from "../../lib/workflow-labels";
+import type { AppRole } from "../../lib/session";
 
 type ApprovalItem = {
   event_id: number;
@@ -14,7 +15,7 @@ type ApprovalItem = {
 
 const fmtDate = (value: string | null) => value ? new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(new Date(value)) : "—";
 
-export default function ApprovalInbox({ canDecide }: { canDecide: boolean }) {
+export default function ApprovalInbox({ canDecide, viewerRole }: { canDecide: boolean; viewerRole: AppRole | null }) {
   const [items, setItems] = useState<ApprovalItem[]>([]);
   const [comments, setComments] = useState<Record<number, string>>({});
   const [loading, setLoading] = useState(true);
@@ -66,7 +67,9 @@ export default function ApprovalInbox({ canDecide }: { canDecide: boolean }) {
 
   return (
     <div className="section-stack">
-      {!canDecide && <p className="message">This inbox is read-only. Only an approver assigned to the current stage can record a decision.</p>}
+      {!canDecide && <p className="message">{viewerRole === "CLUB_COORDINATOR"
+        ? "Showing pending requests for clubs you coordinate. This view is read-only; the assigned faculty approver makes the decision."
+        : "This inbox is read-only. Only an approver assigned to the current stage can record a decision."}</p>}
       {error && <p className="message error" role="alert">{error}</p>}
       {notice && <p className="message" role="status">{notice}</p>}
       {loading ? <section className="panel panel-pad"><p className="muted">Loading your approval inbox…</p></section> : items.length ? items.map(item => {
@@ -80,7 +83,7 @@ export default function ApprovalInbox({ canDecide }: { canDecide: boolean }) {
                 <p className="panel-copy" style={{ marginTop: 5 }}>Submitted {fmtDate(item.workflow.submitted_at)} by {item.event?.organizer_name ?? "requester"}</p>
               </div>
               <div style={{ display: "grid", gap: 7, justifyItems: "end" }}>
-                <span className="pill pending">Waiting for your review</span>
+                <span className="pill pending">{canDecide ? "Waiting for your review" : "Current approval stage"}</span>
                 {overdue && <span className="pill rejected">Overdue</span>}
               </div>
             </div>

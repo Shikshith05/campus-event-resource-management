@@ -4,10 +4,13 @@ import { errorResponse } from "../../../../lib/apiError";
 import { requireUser } from "../../../../lib/auth";
 import { withUserTransaction } from "../../../../lib/db";
 import type { AppRole } from "../../../../lib/session";
+import { validateApprovalStageSequence, validateApproverAssignments } from "../../../../lib/workflow-policy";
 import {
   approversFromContext,
   createWorkflowInstance,
   eventFromContext,
+  selectWorkflowTemplate,
+  WorkflowError,
   type WorkflowContextRow
 } from "../../../../lib/workflow";
 
@@ -151,6 +154,28 @@ export async function POST(request: Request) {
         "SELECT * FROM workflow_context($1)",
         [call.p_event_id]
       );
+
+      // Check MongoDB prerequisites before committing the PostgreSQL event.
+      // A missing template or approver mapping should reject the submission
+      // without leaving behind a draft that has no way to enter approvals.
+      const workflowEvent = eventFromContext(context, user.userId, input);
+      const template = await selectWorkflowTemplate(workflowEvent);
+      const sequenceError = validateApprovalStageSequence(template.stages);
+      if (sequenceError) {
+        throw new WorkflowError(
+          `Workflow template ${template.template_code} is invalid: ${sequenceError}`,
+          422
+        );
+      }
+      const approvers = approversFromContext(context);
+      const assignmentError = validateApproverAssignments(
+        template.stages.map(stage => ({
+          ...stage,
+          assigned_to_user_id: approvers[stage.approver_rule]
+        })),
+        user.userId
+      );
+      if (assignmentError) throw new WorkflowError(assignmentError, 422);
       return { lost: false as const, call, context };
     });
   } catch (error) {
